@@ -16,12 +16,11 @@ class Segment:
     return '(%s, %s)' % (self.first, self.second)
   def __repr__(self):
     return 'Segment' + str(self)
-
-# Makes the segment always increasing.
-def norm(s):
-  p1 = Point(min(s.first.x, s.second.x), min(s.first.y, s.second.y))
-  p2 = Point(max(s.first.x, s.second.x), max(s.first.y, s.second.y))
-  return Segment(p1, p2)
+  # Makes the segment always increasing.
+  def normalized(self):
+    p1 = Point(min(self.first.x, self.second.x), min(self.first.y, self.second.y))
+    p2 = Point(max(self.first.x, self.second.x), max(self.first.y, self.second.y))
+    return Segment(p1, p2)
 
 # Returns a list of line segments.
 def segs(w):
@@ -40,7 +39,7 @@ def segs(w):
     if c[0] == 'U':
       p2 = Point(p1.x, p1.y - int(c[1:]))
     # print(p2)
-    s.append(norm(Segment(p1, p2)))
+    s.append(Segment(p1, p2))
     p1 = p2
     p2 = None
   return s
@@ -53,7 +52,10 @@ def mdist(p):
 
 # Returns the point where two segments intersect.
 # TODO: How to compute the steps to the intersection?
-def intersect(s1, s2):
+def intersect(os1, os2):
+  s1 = os1.normalized()
+  s2 = os2.normalized()
+
   # There are 3 cases:
   # 1. Both horizontal.
   # 2. Both vertical.
