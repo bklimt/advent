@@ -7,6 +7,8 @@ class Point:
     return str((self.x, self.y))
   def __repr__(self):
     return 'Point' + str(self)
+  def manhattan_distance(self):
+    return abs(self.x) + abs(self.y)
 
 class Segment:
   def __init__(self, p1, p2):
@@ -21,6 +23,8 @@ class Segment:
     p1 = Point(min(self.first.x, self.second.x), min(self.first.y, self.second.y))
     p2 = Point(max(self.first.x, self.second.x), max(self.first.y, self.second.y))
     return Segment(p1, p2)
+  def manhattan_distance(self):
+    return abs(self.second.y - self.first.y) + abs(self.second.x - self.first.x)
 
 # Returns a list of line segments.
 def segs(w):
@@ -43,12 +47,6 @@ def segs(w):
     p1 = p2
     p2 = None
   return s
-
-def mlen(s):
-  return abs(s.second.y - s.first.y) + abs(s.second.x - s.first.x)
-
-def mdist(p):
-  return abs(p.x) + abs(p.y)
 
 # Returns the point where two segments intersect.
 # TODO: How to compute the steps to the intersection?
@@ -129,12 +127,12 @@ def find(s1, s2):
   d1 = 0
   for seg in s1:
     steps1.append(d1)
-    d1 = d1 + mlen(seg)
+    d1 = d1 + seg.manhattan_distance()
   steps2 = []
   d2 = 0
   for seg in s2:
     steps2.append(d2)
-    d2 = d2 + mlen(seg)
+    d2 = d2 + seg.manhattan_distance()
 
   min = None
   minsteps = 0
@@ -148,12 +146,12 @@ def find(s1, s2):
         if min is None:
           min = p
         else:
-          if mdist(p) < mdist(min):
+          if p.manhattan_distance() < min.manhattan_distance():
             min = p
   print('min: %s' % (repr(min)))
   if min is None:
     return -1
-  return mdist(min)
+  return min.manhattan_distance()
 
 # Finds the closest intersection.
 def run(w1, w2):
