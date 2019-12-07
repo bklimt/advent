@@ -1,11 +1,15 @@
 
 def has_twins(d):
   s = str(d)
-  for i in range(len(s)):
-    for j in range(len(s)):
-      if i != j:
-        if s[i] == s[j]:
-          return True
+  for i in range(len(s)-1):
+    if s[i] == s[i+1]:
+      if i+2 < len(s):
+        if s[i+1] == s[i+2]:
+          continue
+      if i > 0:
+        if s[i-1] == s[i]:
+          continue
+      return True
   return False
 
 def is_mono(d):
@@ -27,3 +31,8 @@ for i in range(136760, 595731):
 print(t)
 
 # 1: 1873
+# 2: 1264
+
+print(has_twins(112233))
+print(has_twins(123444))
+print(has_twins(111122))
