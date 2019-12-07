@@ -1,37 +1,49 @@
 
+class Point:
+  def __init__(self, x, y):
+    self.x = x
+    self.y = y
+  def __str__(self):
+    return str((self.x, self.y))
+  def __repr__(self):
+    return 'Point' + str(self)
+
 # Makes the segment always increasing.
 def norm(s):
-  p1 = (min(s[0][0], s[1][0]), min(s[0][1], s[1][1]))
-  p2 = (max(s[0][0], s[1][0]), max(s[0][1], s[1][1]))
+  p1 = Point(min(s[0].x, s[1].x), min(s[0].y, s[1].y))
+  p2 = Point(max(s[0].x, s[1].x), max(s[0].y, s[1].y))
   return (p1, p2)
 
 # Returns a list of line segments.
 def segs(w):
   print(w)
   s = []
-  p1 = (0, 0)
+  p1 = Point(0, 0)
   p2 = None
   for c in w:
     # print(c)
     if c[0] == 'R':
-      p2 = (p1[0] + int(c[1:]), p1[1])
+      p2 = Point(p1.x + int(c[1:]), p1.y)
     if c[0] == 'L':
-      p2 = (p1[0] - int(c[1:]), p1[1])
+      p2 = Point(p1.x - int(c[1:]), p1.y)
     if c[0] == 'D':
-      p2 = (p1[0], p1[1] + int(c[1:]))
+      p2 = Point(p1.x, p1.y + int(c[1:]))
     if c[0] == 'U':
-      p2 = (p1[0], p1[1] - int(c[1:]))
+      p2 = Point(p1.x, p1.y - int(c[1:]))
     # print(p2)
     s.append(norm((p1, p2)))
     p1 = p2
     p2 = None
   return s
 
-def mlen(p):
-  # return abs(s[1][1] - s[0][1]) + abs(s[1][0] - s[0][0])
-  return abs(p[0]) + abs(p[1])
+def mlen(s):
+  return abs(s[1].y - s[0].y) + abs(s[1].x - s[0].x)
+
+def mdist(p):
+  return abs(p.x) + abs(p.y)
 
 # Returns the point where two segments intersect.
+# TODO: How to compute the steps to the intersection?
 def intersect(s1, s2):
   # There are 3 cases:
   # 1. Both horizontal.
@@ -39,25 +51,25 @@ def intersect(s1, s2):
   # 3. A horizontal and a vertical.
   
   # Is s1 horizontal?
-  h1 = s1[0][1] == s1[1][1]
+  h1 = s1[0].y == s1[1].y
   # Is s2 horizontal?
-  h2 = s2[0][1] == s2[1][1]
+  h2 = s2[0].y == s2[1].y
 
   # Both horizontal.
   if h1 and h2:
     # Check that their y values are equal.
-    if s1[0][1] != s2[0][1]:
+    if s1[0].y != s2[0].y:
       return None
     # Make sure they overlap.
-    if s1[0][0] < s2[0][0]:
+    if s1[0].x < s2[0].x:
       # s1 starts first.
-      if s2[0][0] <= s1[1][0]:
+      if s2[0].x <= s1[1].x:
         return s2[0]
       else:
         return None
     else:
       # s2 starts first.
-      if s1[0][0] <= s2[1][0]:
+      if s1[0].x <= s2[1].x:
         return s1[0]
       else:
         return None    
@@ -65,18 +77,18 @@ def intersect(s1, s2):
   # Both vertical.
   if (not h1) and (not h2):
     # Check that their x values are equal.
-    if s1[0][0] != s2[0][0]:
+    if s1[0].x != s2[0].x:
       return None
     # Make sure they overlap.
-    if s1[0][1] < s2[0][1]:
+    if s1[0].y < s2[0].y:
       # s1 starts first.
-      if s2[0][1] <= s1[1][1]:
+      if s2[0].y <= s1[1].y:
         return s2[0]
       else:
         return None
     else:
       # s2 starts first.
-      if s1[0][1] <= s2[1][1]:
+      if s1[0].y <= s2[1].y:
         return s1[0]
       else:
         return None        
@@ -90,33 +102,47 @@ def intersect(s1, s2):
 
   # Do they cross?
   # Does the horizontal cross the vertical's x?
-  vx = v[0][0]
-  hy = h[0][1]
-  if h[0][0] <= vx and h[1][0] >= vx:
+  vx = v[0].x
+  hy = h[0].y
+  if h[0].x <= vx and h[1].x >= vx:
     # Does the vertical cross the horizontal's y?
-    if v[0][1] <= hy and v[1][1] >= hy:
+    if v[0].y <= hy and v[1].y >= hy:
       # They intersect!
-      return (vx, hy)
+      return Point(vx, hy)
 
   return None
 
 def find(s1, s2):
+  # Compute the steps to get to each segment.
+  steps1 = []
+  d1 = 0
+  for seg in s1:
+    steps1.append(d1)
+    d1 = d1 + mlen(seg)
+  steps2 = []
+  d2 = 0
+  for seg in s2:
+    steps2.append(d2)
+    d2 = d2 + mlen(seg)
+
   min = None
+  minsteps = 0
   for i in range(len(s1)):
     for j in range(len(s2)):
       if i == 0 and j == 0:
         continue
+      segsteps = steps1[i] + steps2[j]
       p = intersect(s1[i], s2[j])
       if p is not None:
         if min is None:
           min = p
         else:
-          if mlen(p) < mlen(min):
+          if mdist(p) < mdist(min):
             min = p
   print('min: %s' % (repr(min)))
   if min is None:
     return -1
-  return mlen(min)
+  return mdist(min)
 
 # Finds the closest intersection.
 def run(w1, w2):
@@ -135,9 +161,9 @@ L1002,D658,L695,U170,L117,U93,R700,D960,L631,U483,L640,D699,R865,U886,L59,D795,R
 """.strip()
 
 def main():
-  # print(run("R75,D30,R83,U83,L12,D49,R71,U7,L72", "U62,R66,U55,R34,D71,R55,D58,R83"))
-  # print(run("R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51", "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"))
-  print(run(w1, w2))
+  print(run("R75,D30,R83,U83,L12,D49,R71,U7,L72", "U62,R66,U55,R34,D71,R55,D58,R83"))
+  print(run("R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51", "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"))
+  # print(run(w1, w2))
 
 main()
 
