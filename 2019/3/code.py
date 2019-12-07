@@ -49,7 +49,6 @@ def segs(w):
   return s
 
 # Returns the point where two segments intersect.
-# TODO: How to compute the steps to the intersection?
 def intersect(os1, os2):
   s1 = os1.normalized()
   s2 = os2.normalized()
@@ -140,15 +139,23 @@ def find(s1, s2):
     for j in range(len(s2)):
       if i == 0 and j == 0:
         continue
-      segsteps = steps1[i] + steps2[j]
       p = intersect(s1[i], s2[j])
       if p is not None:
+        # Compute the distance within the segment...
+        steps = (steps1[i] +
+          steps2[j] +
+          Segment(p, s1[i].first).manhattan_distance() + 
+          Segment(p, s2[j].first).manhattan_distance())
         if min is None:
           min = p
+          minsteps = steps
         else:
-          if p.manhattan_distance() < min.manhattan_distance():
+          #if p.manhattan_distance() < min.manhattan_distance():
+          if steps < minsteps:
             min = p
+            minsteps = steps
   print('min: %s' % (repr(min)))
+  print('steps: %d' % minsteps)
   if min is None:
     return -1
   return min.manhattan_distance()
@@ -170,10 +177,11 @@ L1002,D658,L695,U170,L117,U93,R700,D960,L631,U483,L640,D699,R865,U886,L59,D795,R
 """.strip()
 
 def main():
-  print(run("R75,D30,R83,U83,L12,D49,R71,U7,L72", "U62,R66,U55,R34,D71,R55,D58,R83"))
-  print(run("R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51", "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"))
-  # print(run(w1, w2))
+  # print(run("R75,D30,R83,U83,L12,D49,R71,U7,L72", "U62,R66,U55,R34,D71,R55,D58,R83"))
+  # print(run("R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51", "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"))
+  print(run(w1, w2))
 
 main()
 
 # 1: 529
+# 2: 20386
