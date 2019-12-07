@@ -8,11 +8,20 @@ class Point:
   def __repr__(self):
     return 'Point' + str(self)
 
+class Segment:
+  def __init__(self, p1, p2):
+    self.first = p1
+    self.second = p2
+  def __str__(self):
+    return '(%s, %s)' % (self.first, self.second)
+  def __repr__(self):
+    return 'Segment' + str(self)
+
 # Makes the segment always increasing.
 def norm(s):
-  p1 = Point(min(s[0].x, s[1].x), min(s[0].y, s[1].y))
-  p2 = Point(max(s[0].x, s[1].x), max(s[0].y, s[1].y))
-  return (p1, p2)
+  p1 = Point(min(s.first.x, s.second.x), min(s.first.y, s.second.y))
+  p2 = Point(max(s.first.x, s.second.x), max(s.first.y, s.second.y))
+  return Segment(p1, p2)
 
 # Returns a list of line segments.
 def segs(w):
@@ -31,13 +40,13 @@ def segs(w):
     if c[0] == 'U':
       p2 = Point(p1.x, p1.y - int(c[1:]))
     # print(p2)
-    s.append(norm((p1, p2)))
+    s.append(norm(Segment(p1, p2)))
     p1 = p2
     p2 = None
   return s
 
 def mlen(s):
-  return abs(s[1].y - s[0].y) + abs(s[1].x - s[0].x)
+  return abs(s.second.y - s.first.y) + abs(s.second.x - s.first.x)
 
 def mdist(p):
   return abs(p.x) + abs(p.y)
@@ -51,45 +60,45 @@ def intersect(s1, s2):
   # 3. A horizontal and a vertical.
   
   # Is s1 horizontal?
-  h1 = s1[0].y == s1[1].y
+  h1 = s1.first.y == s1.second.y
   # Is s2 horizontal?
-  h2 = s2[0].y == s2[1].y
+  h2 = s2.first.y == s2.second.y
 
   # Both horizontal.
   if h1 and h2:
     # Check that their y values are equal.
-    if s1[0].y != s2[0].y:
+    if s1.first.y != s2.first.y:
       return None
     # Make sure they overlap.
-    if s1[0].x < s2[0].x:
+    if s1.first.x < s2.first.x:
       # s1 starts first.
-      if s2[0].x <= s1[1].x:
-        return s2[0]
+      if s2.first.x <= s1.second.x:
+        return s2.first
       else:
         return None
     else:
       # s2 starts first.
-      if s1[0].x <= s2[1].x:
-        return s1[0]
+      if s1.first.x <= s2.second.x:
+        return s1.first
       else:
         return None    
 
   # Both vertical.
   if (not h1) and (not h2):
     # Check that their x values are equal.
-    if s1[0].x != s2[0].x:
+    if s1.first.x != s2.first.x:
       return None
     # Make sure they overlap.
-    if s1[0].y < s2[0].y:
+    if s1.first.y < s2.first.y:
       # s1 starts first.
-      if s2[0].y <= s1[1].y:
-        return s2[0]
+      if s2.first.y <= s1.second.y:
+        return s2.first
       else:
         return None
     else:
       # s2 starts first.
-      if s1[0].y <= s2[1].y:
-        return s1[0]
+      if s1.first.y <= s2.second.y:
+        return s1.first
       else:
         return None        
 
@@ -102,11 +111,11 @@ def intersect(s1, s2):
 
   # Do they cross?
   # Does the horizontal cross the vertical's x?
-  vx = v[0].x
-  hy = h[0].y
-  if h[0].x <= vx and h[1].x >= vx:
+  vx = v.first.x
+  hy = h.first.y
+  if h.first.x <= vx and h.second.x >= vx:
     # Does the vertical cross the horizontal's y?
-    if v[0].y <= hy and v[1].y >= hy:
+    if v.first.y <= hy and v.second.y >= hy:
       # They intersect!
       return Point(vx, hy)
 
