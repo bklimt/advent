@@ -1,7 +1,13 @@
 
 def booltostr(b):
-  if b:
+  if b is not None:
     return 'X'
+  else:
+    return ' '
+
+def inttostr(b):
+  if b is not None:
+    return str(b)
   else:
     return ' '
 
@@ -12,7 +18,7 @@ def count(adj):
   t = 0
   for i in range(len(adj)):
     for j in range(len(adj)):
-      if adj[i][j]:
+      if adj[i][j] is not None:
         t = t + 1
   return t
 
@@ -34,11 +40,12 @@ def main():
       index[b] = n
   print(index)
   n = len(index)
-  adj = [[False for i in range(n)] for j in range(n)]
+  adj = [[None for i in range(n)] for j in range(n)]
   # Do the immediate orbits.
   for x in xs:
     a, b = x
-    adj[index[a]][index[b]] = True
+    adj[index[a]][index[b]] = 1
+    adj[index[b]][index[a]] = 1
   printadj(adj)
   # Compute the transitive orbits.
   for h in range(n):
@@ -46,17 +53,22 @@ def main():
     print('%d/%d' % (h, n))
     for i in range(n):
       for j in range(n):
-        if not adj[i][j]:
-          for k in range(n):
-            if adj[i][k] and adj[k][j]:
+        for k in range(n):
+          ij = adj[i][j]
+          ik = adj[i][k]
+          kj = adj[k][j]
+          if ik is not None and kj is not None:
+            if ij is None or ik + kj < ij:
               mod = mod + 1
-              adj[i][j] = True
+              adj[i][j] = ik + kj
     if mod == 0:
       break
     print('modified: %d' % mod)
-  printadj(adj)
-  print('checksum = %d' % count(adj))
+  # printadj(adj)
+  # print('checksum = %d' % count(adj))
+  print('distance = %d' % adj[index['YOU']][index['SAN']]-2)
 
 main()
 
-1: 147223
+# 1: 147223
+# 2: 340
