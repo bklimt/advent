@@ -1,7 +1,15 @@
 import sys
 
+class Interactive:
+  def input(self):
+    print('input: ')
+    return input()
+  def output(self, d1):
+    print('output: %d' % d1)
+
 class Computer:
-  def __init__(self, memory):
+  def __init__(self, memory, io):
+    self.io = io
     self.running = True
     self.memory = memory
     self.ip = 0
@@ -25,13 +33,32 @@ class Computer:
     self.log("[%d] = %d * %d = %d" % (a3, d1, d2, d3))
 
   def input(self, a1):
-    self.log('input: ')
-    d1 = input()
+    d1 = self.io.input()
     self.memory[a1] = d1
     self.log("[%d] = %d" % (a1, d1))
 
   def output(self, d1):
-    self.log('output: %d' % d1)
+    self.io.output(d1)
+
+  def jumpif(self, d1, d2):
+    if d1 != 0:
+      self.ip = d2
+
+  def jumpifnot(self, d1, d2):
+    if d1 == 0:
+      self.ip = d2
+
+  def lessthan(self, d1, d2, a3):
+    if d1 < d2:
+      self.memory[a3] = 1
+    else:
+      self.memory[a3] = 0
+
+  def equals(self, d1, d2, a3):
+    if d1 == d2:
+      self.memory[a3] = 1
+    else:
+      self.memory[a3] = 0
 
   def fetch(self):
     d1 = self.memory[self.ip]
@@ -79,6 +106,24 @@ class Computer:
     elif opcode == 4:
       a = self.fetchdata()
       self.output(a)
+    elif opcode == 5:
+      a = self.fetchdata()
+      b = self.fetchdata()
+      self.jumpif(a, b)
+    elif opcode == 6:
+      a = self.fetchdata()
+      b = self.fetchdata()
+      self.jumpifnot(a, b)
+    elif opcode == 7:
+      a = self.fetchdata()
+      b = self.fetchdata()
+      c = self.fetchaddr()
+      self.lessthan(a, b, c)
+    elif opcode == 8:
+      a = self.fetchdata()
+      b = self.fetchdata()
+      c = self.fetchaddr()
+      self.equals(a, b, c)
     else:
       self.log("unknown opcode: %d" % opcode)
       self.quit()
@@ -95,7 +140,7 @@ class Computer:
 
 def run(m):
   print('*' * 80)
-  comp = Computer(m)
+  comp = Computer(m, Interactive())
   val = comp.run()
   print('*' * 80)
   return val
@@ -115,6 +160,18 @@ def test():
   print(run([3,0,4,0,99]))
   print(run([1002,4,3,4,33]))
   print(run([1101,100,-1,4,0]))
+  print('input 8')
+  print(run([3,9,8,9,10,9,4,9,99,-1,8]))
+  print('input <8')
+  print(run([3,9,7,9,10,9,4,9,99,-1,8]))
+  print('input 8')
+  print(run([3,3,1108,-1,8,3,4,3,99]))
+  print('input <8')
+  print(run([3,3,1107,-1,8,3,4,3,99]))
+  print('cast to bool')
+  print(run([3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9]))
+  print('cast to bool')
+  print(run([3,3,1105,-1,9,1101,0,0,12,4,12,99,1]))
 
 def main():
   f = file('program.txt')
@@ -126,4 +183,4 @@ def main():
 main()
 
 # 1: 4330636
-# 2: 6086
+# 2: 10428568
