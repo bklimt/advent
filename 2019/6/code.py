@@ -42,14 +42,21 @@ def main():
   printadj(adj)
   # Compute the transitive orbits.
   for h in range(n):
+    mod = 0
     print('%d/%d' % (h, n))
     for i in range(n):
       for j in range(n):
         if not adj[i][j]:
           for k in range(n):
             if adj[i][k] and adj[k][j]:
+              mod = mod + 1
               adj[i][j] = True
+    if mod == 0:
+      break
+    print('modified: %d' % mod)
   printadj(adj)
   print('checksum = %d' % count(adj))
 
 main()
+
+1: 147223
