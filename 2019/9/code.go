@@ -111,13 +111,20 @@ func (comp *Computer) fetchData() int {
 	if mode == 2 {
 		return comp.memory[d1+comp.base]
 	}
-	panic("unknown mode")
+	panic("unknown data mode")
 }
 
 func (comp *Computer) fetchAddr() int {
+	mode := comp.modes % 10
 	comp.modes = comp.modes / 10
 	d1 := comp.fetch()
-	return d1
+	if mode == 0 {
+		return d1
+	}
+	if mode == 2 {
+		return d1 + comp.base
+	}
+	panic("unknown addr mode")
 }
 
 func (comp *Computer) process() {
@@ -159,7 +166,8 @@ func (comp *Computer) process() {
 		c := comp.fetchAddr()
 		comp.equals(a, b, c)
 	case 9:
-		comp.base = comp.base + comp.fetchData()
+		a := comp.fetchData()
+		comp.base = comp.base + a
 	default:
 		fmt.Printf("unknown opcode: %d\n", opcode)
 		comp.quit()
@@ -220,3 +228,5 @@ func main() {
 	}
 	fmt.Printf("[%s]\n", strings.Join(output, ","))
 }
+
+// 4234906522
