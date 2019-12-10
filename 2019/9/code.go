@@ -221,7 +221,7 @@ func main() {
 	out := make(chan int)
 	c := NewComputer(p, in, out)
 	go c.Run()
-	in <- 1
+	in <- 2
 	output := []string{}
 	for x := range out {
 		output = append(output, fmt.Sprintf("%d", x))
@@ -230,3 +230,4 @@ func main() {
 }
 
 // 4234906522
+// 60962
