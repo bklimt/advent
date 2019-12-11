@@ -62,106 +62,126 @@ fn main() {
     let mut max_row = 0;
     let mut max_col = 0;
     let mut result = vec![vec![0; cols]; rows];
-    for row in 0..rows {
-        for col in 0..cols {
-            // println!("{},{}:", row, col);            
-            if map[row][col] == 1 {
-                let mut seen = HashSet::new();
-                // Iterate over all the other asteroids.
-                for r in 0..rows {
-                    for c in 0..cols {
-                        if r == row && c == col {
-                            continue;
-                        }
-                        if map[r][c] == 1 {
-                            // Check if it's visible.
+    let row = 13;
+    let col = 11;
+    println!("{},{}:", row, col);            
+    if map[row][col] == 1 {
+        loop {
+            let mut min_angle = 8.0;
+            let mut min_distance = 0;
+            let mut min_row = 0;
+            let mut min_col = 0;
+            let mut found = false;
+            let mut seen = HashSet::new();
+            // Iterate over all the other asteroids.
+            for r in 0..rows {
+                for c in 0..cols {
+                    if r == row && c == col {
+                        continue;
+                    }
+                    if map[r][c] == 1 {
+                        // Check if it's visible.
 
-                            // Create a normalized vector pointing at the target.
-                            let mut dy = (r as i32) - (row as i32);
-                            let mut dx = (c as i32) - (col as i32);
-                            // println!("       dx: {}, dy: {}", dx, dy);
+                        // Create a normalized vector pointing at the target.
+                        let mut dy = (r as i32) - (row as i32);
+                        let mut dx = (c as i32) - (col as i32);
+                        // println!("       dx: {}, dy: {}", dx, dy);
 
-                            // Determine the distance for sorting.
-                            let distance = dx * dx + dy * dy;
+                        // Determine the distance for sorting.
+                        let distance = dx * dx + dy * dy;
 
-                            // Determine the angle for sorting.
-                            let angle = if dx == 0 && dy == 0 {
+                        // Determine the angle for sorting.
+                        let angle = if dx == 0 && dy == 0 {
+                            0.0
+                        } else if dx == 0 {
+                            if dy < 0 {
                                 0.0
-                            } else if dx == 0 {
-                                if dy < 0 {
-                                    0.0
-                                } else {
-                                    f32::consts::PI
-                                }
-                            } else if dy == 0 {
-                                if dx < 0 {
-                                    3.0 * f32::consts::PI / 2.0
-                                } else {
-                                    f32::consts::PI / 2.0
-                                }
-                            } else if dx > 0 {
-                                if dy > 0 {
-                                    // dx > 0
-                                    // dy > 0
-                                    ((dy as f32)/(dx as f32)).atan() + f32::consts::PI / 2.0
-                                } else {
-                                    // dx > 0
-                                    // dy < 0
-                                    ((dx as f32)/(-dy as f32)).atan()
-                                }
                             } else {
-                                if dy > 0 {
-                                    // dx < 0
-                                    // dy > 0
-                                    ((-dx as f32)/(dy as f32)).atan() + f32::consts::PI
-                                } else {
-                                    // dx < 0
-                                    // dy < 0
-                                    ((dy as f32)/(dx as f32)).atan() + 3.0 * f32::consts::PI / 2.0
-                                }
-                            };
-                            // println!("        0: {}", angle);
-
-                            let signx = dx.signum();
-                            let signy = dy.signum();
-                            // println!("       sx: {}, sy: {}", signx, signy);
-                            dx = signx * dx;
-                            dy = signy * dy;
-                            if dx == 0 {
-                                dy = 1;
-                            } else if dy == 0 {
-                                dx = 1;
+                                f32::consts::PI
+                            }
+                        } else if dy == 0 {
+                            if dx < 0 {
+                                3.0 * f32::consts::PI / 2.0
                             } else {
-                                let r = num_rational::Ratio::new(dx, dy);
-                                dx = *r.numer();
-                                dy = *r.denom();
-                                // println!("      *dx: {},*dy: {}", dx, dy);
+                                f32::consts::PI / 2.0
                             }
-                            dx = signx * dx;
-                            dy = signy * dy;
-                            // println!("      +dx: {},+dy: {}", dx, dy);
-                            let norm_vec = (dx, dy);
+                        } else if dx > 0 {
+                            if dy > 0 {
+                                // dx > 0
+                                // dy > 0
+                                ((dy as f32)/(dx as f32)).atan() + f32::consts::PI / 2.0
+                            } else {
+                                // dx > 0
+                                // dy < 0
+                                ((dx as f32)/(-dy as f32)).atan()
+                            }
+                        } else {
+                            if dy > 0 {
+                                // dx < 0
+                                // dy > 0
+                                ((-dx as f32)/(dy as f32)).atan() + f32::consts::PI
+                            } else {
+                                // dx < 0
+                                // dy < 0
+                                ((dy as f32)/(dx as f32)).atan() + 3.0 * f32::consts::PI / 2.0
+                            }
+                        };
+                        // println!("        0: {}", angle);
 
-                            // println!("  {},{}: vec: {:?}", r, c, t);
-                            if !seen.contains(&norm_vec) {
-                                seen.insert(norm_vec);
-                                result[row][col] = result[row][col] + 1;
-                            }
+                        if !found || angle < min_angle || (min_angle == angle && distance < min_distance) {
+                            min_angle = angle;
+                            min_distance = distance;
+                            min_row = r;
+                            min_col = c;
+                            found = true;
+                        }
+
+                        let signx = dx.signum();
+                        let signy = dy.signum();
+                        // println!("       sx: {}, sy: {}", signx, signy);
+                        dx = signx * dx;
+                        dy = signy * dy;
+                        if dx == 0 {
+                            dy = 1;
+                        } else if dy == 0 {
+                            dx = 1;
+                        } else {
+                            let r = num_rational::Ratio::new(dx, dy);
+                            dx = *r.numer();
+                            dy = *r.denom();
+                            // println!("      *dx: {},*dy: {}", dx, dy);
+                        }
+                        dx = signx * dx;
+                        dy = signy * dy;
+                        // println!("      +dx: {},+dy: {}", dx, dy);
+                        let norm_vec = (dx, dy);
+
+                        // println!("  {},{}: vec: {:?}", r, c, t);
+                        if !seen.contains(&norm_vec) {
+                            seen.insert(norm_vec);
+                            result[row][col] = result[row][col] + 1;
                         }
                     }
                 }
-                let visible = result[row][col];
-                if visible > max {
-                    max = visible;
-                    max_row = row;
-                    max_col = col;
-                }
             }
+            if !found {
+                break;
+            }
+            map[min_row][min_col] = 0;
+            println!("destroying [{},{}] at angle={}, distance={}", min_col, min_row, min_angle, min_distance);
+            print_map(&map);
+            println!("");
+        }
+        let visible = result[row][col];
+        if visible > max {
+            max = visible;
+            max_row = row;
+            max_col = col;
         }
     }
-    print_map(&result);
+    // print_map(&result);
 
-    println!("max: {} at [{}, {}]", max, max_row, max_col);
+    // println!("max: {} at [{}, {}]", max, max_row, max_col);
 }
 
 // 230
