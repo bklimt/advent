@@ -3,6 +3,7 @@ extern crate num_rational;
 
 use std::collections::HashSet;
 use std::env;
+use std::f32;
 use std::fs;
 
 fn print_map(map: &Vec<Vec<i32>>) {
@@ -79,6 +80,48 @@ fn main() {
                             let mut dy = (r as i32) - (row as i32);
                             let mut dx = (c as i32) - (col as i32);
                             // println!("       dx: {}, dy: {}", dx, dy);
+
+                            // Determine the distance for sorting.
+                            let distance = dx * dx + dy * dy;
+
+                            // Determine the angle for sorting.
+                            let angle = if dx == 0 && dy == 0 {
+                                0.0
+                            } else if dx == 0 {
+                                if dy < 0 {
+                                    0.0
+                                } else {
+                                    f32::consts::PI
+                                }
+                            } else if dy == 0 {
+                                if dx < 0 {
+                                    3.0 * f32::consts::PI / 2.0
+                                } else {
+                                    f32::consts::PI / 2.0
+                                }
+                            } else if dx > 0 {
+                                if dy > 0 {
+                                    // dx > 0
+                                    // dy > 0
+                                    ((dy as f32)/(dx as f32)).atan() + f32::consts::PI / 2.0
+                                } else {
+                                    // dx > 0
+                                    // dy < 0
+                                    ((dx as f32)/(-dy as f32)).atan()
+                                }
+                            } else {
+                                if dy > 0 {
+                                    // dx < 0
+                                    // dy > 0
+                                    ((-dx as f32)/(dy as f32)).atan() + f32::consts::PI
+                                } else {
+                                    // dx < 0
+                                    // dy < 0
+                                    ((dy as f32)/(dx as f32)).atan() + 3.0 * f32::consts::PI / 2.0
+                                }
+                            };
+                            // println!("        0: {}", angle);
+
                             let signx = dx.signum();
                             let signy = dy.signum();
                             // println!("       sx: {}, sy: {}", signx, signy);
@@ -97,11 +140,11 @@ fn main() {
                             dx = signx * dx;
                             dy = signy * dy;
                             // println!("      +dx: {},+dy: {}", dx, dy);
-                            let t = (dx, dy);
+                            let norm_vec = (dx, dy);
 
                             // println!("  {},{}: vec: {:?}", r, c, t);
-                            if !seen.contains(&t) {
-                                seen.insert(t);
+                            if !seen.contains(&norm_vec) {
+                                seen.insert(norm_vec);
                                 result[row][col] = result[row][col] + 1;
                             }
                         }
