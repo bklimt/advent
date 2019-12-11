@@ -55,8 +55,8 @@ fn main() {
     print_map(&map);
     println!("");
 
-    let row = 13;
-    let col = 11;
+    let row = 11;
+    let col = 19;
     let mut prev_angle = -1.0;
     let mut steps = 0;
     println!("{},{}:", row, col);            
@@ -149,3 +149,4 @@ fn main() {
 }
 
 // 230
+// 1205
