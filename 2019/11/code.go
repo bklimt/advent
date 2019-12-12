@@ -98,6 +98,7 @@ func (robot *Robot) Step() bool {
 }
 
 func (robot *Robot) Run() {
+	robot.Map[Position{X: 0, Y: 0}] = 1
 	for robot.Step() {
 	}
 }
@@ -304,10 +305,42 @@ func main() {
 	go robot.Run()
 	c.Run()
 
+	minx := 0
+	maxx := 0
+	miny := 0
+	maxy := 0
 	for p, n := range robot.Map {
+		if p.X < minx {
+			minx = p.X
+		}
+		if p.X > maxx {
+			maxx = p.X
+		}
+		if p.Y < miny {
+			miny = p.Y
+		}
+		if p.Y > maxy {
+			maxy = p.Y
+		}
 		fmt.Printf("map[%d,%d] = %d\n", p.X, p.Y, n)
 	}
+
+	fmt.Printf("(%d,%d) -> (%d,%d)\n", minx, miny, maxx, maxy)
+
 	fmt.Println(len(robot.Map))
+
+	for y := miny; y <= maxy; y++ {
+		for x := minx; x <= maxx; x++ {
+			color := robot.Map[Position{X: x, Y: y}]
+			if color == 1 {
+				fmt.Print("#")
+			} else {
+				fmt.Print(" ")
+			}
+		}
+		fmt.Println()
+	}
 }
 
 // 1785
+// HJALJZFH
