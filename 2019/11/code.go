@@ -26,6 +26,8 @@ func (dir Direction) Clockwise() Direction {
 		return Right
 	case Down:
 		return Left
+	default:
+		panic("unknown direction")
 	}
 }
 
@@ -39,6 +41,8 @@ func (dir Direction) CounterClockwise() Direction {
 		return Left
 	case Down:
 		return Right
+	default:
+		panic("unknown direction")
 	}
 }
 
@@ -53,12 +57,27 @@ type Robot struct {
 	Map Map
 	Pos Position
 	Dir Direction
+	In  <-chan int
+	Out chan<- int
 }
 
-func (robot *Robot) Step(in <-chan int, out chan<- int) {
-	out <- robot.Map[robot.Pos]
-	color := <-in
-	turn := <-in
+func NewRobot(in <-chan int, out chan<- int) *Robot {
+	return &Robot{
+		Map: make(map[Position]int),
+		Pos: Position{0, 0},
+		Dir: Up,
+		In:  in,
+		Out: out,
+	}
+}
+
+func (robot *Robot) Step() bool {
+	robot.Out <- robot.Map[robot.Pos]
+	color, ok := <-robot.In
+	if !ok {
+		return false
+	}
+	turn := <-robot.In
 	robot.Map[robot.Pos] = color
 	if turn == 0 {
 		robot.Dir = robot.Dir.CounterClockwise()
@@ -74,6 +93,12 @@ func (robot *Robot) Step(in <-chan int, out chan<- int) {
 		robot.Pos.Y--
 	case Down:
 		robot.Pos.Y++
+	}
+	return true
+}
+
+func (robot *Robot) Run() {
+	for robot.Step() {
 	}
 }
 
@@ -253,21 +278,6 @@ func (comp *Computer) Run() {
 	close(comp.out)
 }
 
-func test1() {
-	// p := []int{109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99}
-	// p := []int{1102, 34915192, 34915192, 7, 4, 7, 99, 0}
-	p := []int{104, 1125899906842624, 99}
-	in := make(chan int)
-	out := make(chan int)
-	c := NewComputer(p, in, out)
-	go c.Run()
-	output := []string{}
-	for x := range out {
-		output = append(output, fmt.Sprintf("%d", x))
-	}
-	fmt.Printf("[%s]\n", strings.Join(output, ","))
-}
-
 func ReadProgram() []int {
 	b, err := ioutil.ReadFile("program.txt")
 	if err != nil {
@@ -290,14 +300,14 @@ func main() {
 	in := make(chan int)
 	out := make(chan int)
 	c := NewComputer(p, in, out)
-	go c.Run()
-	in <- 2
-	output := []string{}
-	for x := range out {
-		output = append(output, fmt.Sprintf("%d", x))
+	robot := NewRobot(out, in)
+	go robot.Run()
+	c.Run()
+
+	for p, n := range robot.Map {
+		fmt.Printf("map[%d,%d] = %d\n", p.X, p.Y, n)
 	}
-	fmt.Printf("[%s]\n", strings.Join(output, ","))
+	fmt.Println(len(robot.Map))
 }
 
-// 4234906522
-// 60962
+// 1785
