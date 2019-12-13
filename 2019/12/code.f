@@ -1,5 +1,5 @@
 
-c Define our own signum functions.
+c Define our own signum function.
       integer function signum(n)
       integer n
       if (n.lt.0) signum=-1
