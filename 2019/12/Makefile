@@ -5,7 +5,7 @@ clean:
 	rm -rf ./bin/
 
 bin/a.out: code.f
-	mkdir -p bin && gfortran-8 -fimplicit-none -o $@ $^
+	mkdir -p bin && gfortran-8 -fimplicit-none -pedantic -o $@ $^
 
 run: bin/a.out
 	./bin/a.out
