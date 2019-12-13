@@ -1,8 +1,11 @@
 
-all: a.out
+all: bin/a.out
 
-a.out: code.f
-	gfortran-8 -fimplicit-none -o $@ $^
+clean:
+	rm -rf ./bin/
 
-run: a.out
-	./a.out
+bin/a.out: code.f
+	mkdir -p bin && gfortran-8 -fimplicit-none -o $@ $^
+
+run: bin/a.out
+	./bin/a.out

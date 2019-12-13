@@ -13,7 +13,7 @@ c A program to track orbits.
       integer signum
       integer i,j
       integer t
-      integer x(4),   y(4),  z(4)
+      integer  x(4),  y(4),  z(4)
       integer dx(4), dy(4), dz(4)
       integer e, pot, kin
 
