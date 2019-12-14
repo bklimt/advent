@@ -133,6 +133,7 @@ func (comp *Computer) multiply(d1, d2, a3 int) {
 }
 
 func (comp *Computer) input(a1 int) {
+	comp.WantInput <- true
 	d1 := <-comp.In
 	comp.Memory[a1] = d1
 }
@@ -294,7 +295,7 @@ func main() {
 	done := make(chan bool)
 
 	c := NewComputer(p, in, out, wantInput)
-	// c.Memory[0] = 2
+	c.Memory[0] = 2
 	game := NewGame(out)
 	go func() {
 		c.Run()
@@ -305,10 +306,13 @@ func main() {
 		done <- true
 	}()
 	go func() {
-		_, ok := <-wantInput
-		game.Draw()
-		if ok {
-			in <- 1
+		ok := true
+		for ok {
+			_, ok := <-wantInput
+			game.Draw()
+			if ok {
+				in <- 1
+			}
 		}
 		done <- true
 	}()
