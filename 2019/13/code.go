@@ -21,12 +21,11 @@ type Game struct {
 	Out    chan<- int
 }
 
-func NewGame(in <-chan int, out chan<- int) *Game {
+func NewGame(in <-chan int) *Game {
 	return &Game{
 		Screen: make(map[Position]int),
 		Size:   Position{X: 0, Y: 0},
 		In:     in,
-		Out:    out,
 	}
 }
 
@@ -92,85 +91,87 @@ func (game *Game) CountBlockTiles() int {
 }
 
 type Computer struct {
-	in      <-chan int
-	out     chan<- int
-	running bool
-	memory  map[int]int
-	ip      int
-	modes   int
-	base    int
+	In        <-chan int
+	Out       chan<- int
+	WantInput chan<- bool
+	Running   bool
+	Memory    map[int]int
+	Ip        int
+	Modes     int
+	Base      int
 }
 
-func NewComputer(memory []int, in <-chan int, out chan<- int) *Computer {
+func NewComputer(memory []int, in <-chan int, out chan<- int, wantInput chan<- bool) *Computer {
 	mem := make(map[int]int)
 	for i, x := range memory {
 		mem[i] = x
 	}
 	return &Computer{
-		memory:  mem,
-		in:      in,
-		out:     out,
-		running: true,
-		ip:      0,
-		modes:   0,
-		base:    0,
+		Memory:    mem,
+		In:        in,
+		Out:       out,
+		WantInput: wantInput,
+		Running:   true,
+		Ip:        0,
+		Modes:     0,
+		Base:      0,
 	}
 }
 
 func (comp *Computer) quit() {
-	comp.running = false
+	comp.Running = false
 }
 
 func (comp *Computer) add(d1, d2, a3 int) {
 	d3 := d1 + d2
-	comp.memory[a3] = d3
+	comp.Memory[a3] = d3
 }
 
 func (comp *Computer) multiply(d1, d2, a3 int) {
 	d3 := d1 * d2
-	comp.memory[a3] = d3
+	comp.Memory[a3] = d3
 }
 
 func (comp *Computer) input(a1 int) {
-	d1 := <-comp.in
-	comp.memory[a1] = d1
+	d1 := <-comp.In
+	comp.Memory[a1] = d1
 }
 
 func (comp *Computer) output(d1 int) {
-	comp.out <- d1
+	comp.Out <- d1
 }
 
 func (comp *Computer) jumpIf(d1, d2 int) {
 	if d1 != 0 {
-		comp.ip = d2
+		comp.Ip = d2
 	}
 }
 
 func (comp *Computer) jumpIfNot(d1, d2 int) {
 	if d1 == 0 {
-		comp.ip = d2
+		comp.Ip = d2
 	}
 }
 
 func (comp *Computer) lessThan(d1, d2, a3 int) {
 	if d1 < d2 {
-		comp.memory[a3] = 1
+		comp.Memory[a3] = 1
 	} else {
-		comp.memory[a3] = 0
+		comp.Memory[a3] = 0
 	}
 }
 
 func (comp *Computer) equals(d1, d2, a3 int) {
 	if d1 == d2 {
-		comp.memory[a3] = 1
+		comp.Memory[a3] = 1
 	} else {
-		comp.memory[a3] = 0
+		comp.Memory[a3] = 0
 	}
 }
 
 func (comp *Computer) fetch() int {
-	d1 := comp.memory[comp.ip]
-	comp.ip++
+	d1 := comp.Memory[comp.Ip]
+	comp.Ip++
 	return d1
 }
 
@@ -178,35 +179,35 @@ func (comp *Computer) fetchOp() int {
 	op := comp.fetch()
 	opcode := op % 100
 	op = op / 100
-	comp.modes = op
+	comp.Modes = op
 	return opcode
 }
 
 func (comp *Computer) fetchData() int {
-	mode := comp.modes % 10
-	comp.modes = comp.modes / 10
+	mode := comp.Modes % 10
+	comp.Modes = comp.Modes / 10
 	d1 := comp.fetch()
 	if mode == 0 {
-		return comp.memory[d1]
+		return comp.Memory[d1]
 	}
 	if mode == 1 {
 		return d1
 	}
 	if mode == 2 {
-		return comp.memory[d1+comp.base]
+		return comp.Memory[d1+comp.Base]
 	}
 	panic("unknown data mode")
 }
 
 func (comp *Computer) fetchAddr() int {
-	mode := comp.modes % 10
-	comp.modes = comp.modes / 10
+	mode := comp.Modes % 10
+	comp.Modes = comp.Modes / 10
 	d1 := comp.fetch()
 	if mode == 0 {
 		return d1
 	}
 	if mode == 2 {
-		return d1 + comp.base
+		return d1 + comp.Base
 	}
 	panic("unknown addr mode")
 }
@@ -251,7 +252,7 @@ func (comp *Computer) process() {
 		comp.equals(a, b, c)
 	case 9:
 		a := comp.fetchData()
-		comp.base = comp.base + a
+		comp.Base = comp.Base + a
 	default:
 		fmt.Printf("unknown opcode: %d\n", opcode)
 		comp.quit()
@@ -259,12 +260,13 @@ func (comp *Computer) process() {
 }
 
 func (comp *Computer) Run() {
-	comp.running = true
-	comp.ip = 0
-	for comp.running {
+	comp.Running = true
+	comp.Ip = 0
+	for comp.Running {
 		comp.process()
 	}
-	close(comp.out)
+	close(comp.Out)
+	close(comp.WantInput)
 }
 
 func ReadProgram() []int {
@@ -288,12 +290,33 @@ func main() {
 	p := ReadProgram()
 	in := make(chan int)
 	out := make(chan int)
-	c := NewComputer(p, in, out)
-	game := NewGame(out, in)
-	go c.Run()
-	game.Run()
+	wantInput := make(chan bool)
+	done := make(chan bool)
 
-	game.Draw()
+	c := NewComputer(p, in, out, wantInput)
+	// c.Memory[0] = 2
+	game := NewGame(out)
+	go func() {
+		c.Run()
+		done <- true
+	}()
+	go func() {
+		game.Run()
+		done <- true
+	}()
+	go func() {
+		_, ok := <-wantInput
+		game.Draw()
+		if ok {
+			in <- 1
+		}
+		done <- true
+	}()
+
+	<-done
+	<-done
+	<-done
+	close(in)
 
 	fmt.Printf("block tiles: %d\n", game.CountBlockTiles())
 }
