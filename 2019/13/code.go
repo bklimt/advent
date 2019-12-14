@@ -17,15 +17,21 @@ type Screen map[Position]int
 type Game struct {
 	Screen Screen
 	Size   Position
+	Paddle Position
+	Ball   Position
 	In     <-chan int
 	Out    chan<- int
+	Score  int
 }
 
 func NewGame(in <-chan int) *Game {
 	return &Game{
 		Screen: make(map[Position]int),
 		Size:   Position{X: 0, Y: 0},
+		Paddle: Position{X: 0, Y: 0},
+		Ball:   Position{X: 0, Y: 0},
 		In:     in,
+		Score:  0,
 	}
 }
 
@@ -43,11 +49,23 @@ func (game *Game) Step() bool {
 		return false
 	}
 
+	if x == -1 && y == 0 {
+		game.Score = tile
+		return true
+	}
+
 	if x > game.Size.X {
 		game.Size.X = x
 	}
 	if y > game.Size.Y {
 		game.Size.Y = y
+	}
+
+	if tile == 3 {
+		game.Paddle = Position{X: x, Y: y}
+	}
+	if tile == 4 {
+		game.Ball = Position{X: x, Y: y}
 	}
 
 	game.Screen[Position{X: x, Y: y}] = tile
@@ -310,8 +328,15 @@ func main() {
 		for ok {
 			_, ok := <-wantInput
 			game.Draw()
+			fmt.Printf("Score: %d\n\n", game.Score)
 			if ok {
-				in <- 1
+				if game.Paddle.X < game.Ball.X {
+					in <- 1
+				} else if game.Paddle.X > game.Ball.X {
+					in <- -1
+				} else {
+					in <- 0
+				}
 			}
 		}
 		done <- true
