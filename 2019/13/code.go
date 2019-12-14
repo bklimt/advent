@@ -350,4 +350,5 @@ func main() {
 	fmt.Printf("block tiles: %d\n", game.CountBlockTiles())
 }
 
-// 361
+// 1: 361
+// 2: 17590
