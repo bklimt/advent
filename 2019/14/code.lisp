@@ -84,7 +84,7 @@
         (inner-prefix (format nil " ~A" prefix))
         (ore-count (amount-if-only-ore inventory)))
     (cond ((not (null ore-count))              ; We're done.
-           (format t "~A ORE = ~A~%" prefix ore-count)
+           ;; (format t "~A ORE = ~A~%" prefix ore-count)
            ore-count)
           (remaining-rules                     ; There are still more rules.
            (let ((ore-count-1 (apply-rules-int inventory
@@ -93,8 +93,8 @@
                                                prefix))
                  (new-inv (apply-rule inventory rule)))
              (cond (new-inv
-                    (format t "~A  Got new inventory ~A from rule ~A~%"
-			    prefix new-inv rule)
+                    ;; (format t "~A  Got new inventory ~A from rule ~A~%"
+	            ;;         prefix new-inv rule)
                     (let ((ore-count-2 (apply-rules-int new-inv
                                                         all-rules
                                                         all-rules
