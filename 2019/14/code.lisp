@@ -1,9 +1,11 @@
 
+;; Parses an expression like "1 A" to (A . 1).
 (defun parse-item (s)
   (let ((i (search " " s)))
-    (list (parse-integer (subseq s 0 i))
-          (intern (subseq s (+ i 1))))))
+    (cons (intern (subseq s (+ i 1)))
+          (parse-integer (subseq s 0 i)))))
 
+;; Parses a list like "1 A, 2 B" to ((A . 1)(B . 2)).
 (defun parse-list (s)
   (let ((i (search ", " s)))
     (if (null i)
@@ -11,43 +13,91 @@
         (cons (parse-item (subseq s 0 i))
               (parse-list (subseq s (+ i 2)))))))
 
+;; Parses an equation like "1 A, 2 B => 3 C" to ((C . 3)(A . 1)(B . 2)).
 (defun parse-equation (s)
   (let ((i (search " => " s)))
-    (list (parse-item (subseq s (+ i 4)))
+    (cons (parse-item (subseq s (+ i 4)))
           (parse-list (subseq s 0 i)))))
 
-(defun read-lines (f)
+;; Parses a series of equations from a file and returns the list.
+(defun parse-file (f)
   (let ((line (read-line f nil)))
     (if line
-      (cons (parse-equation line) (read-lines f)))))
+      (cons (parse-equation line) (parse-file f)))))
 
+;; Parses the equations from a path and returns the list.
 (defun read-file (path)
   (let* ((f (open path))
-         (lines (read-lines f)))
+         (equations (parse-file f)))
     (close f)
-    lines))
+    equations))
 
-(defun count-ore-for-element (element rules)
-  ; (format t "searching for: ~A in rules: ~A~%" element rules)
-  (if rules
-      ; Check the first rule.
-      (let* ((name (cadr element))
-             (amount (car element))
-             (rule (car rules))
-             (lhs (car rule))
-             (rule-name (cadr lhs))
-             (rule-amount (car lhs)))
-            (format t "checking for: ~A in rule: ~A~%" element rule)
-            (if (eq rule-name name)
-              (format t "   YES!~%"))
-            ; Check the rest of the rules.
-            (count-ore-for-element element (cdr rules)))))
+;; Inserts or increments the item in the a-list lst by the given amount.
+(defun assoc-inc (item amount lst)
+  (cond ((null lst)
+	 (list (cons item amount)))
+	((eq item (caar lst))
+	 (cons (cons item (+ amount (cdar lst))) (cdr lst)))
+	(t (cons (car lst)
+		 (assoc-inc item amount (cdr lst))))))
 
-(defun count-ore-for-elements (elements rules)
-  (if elements
-      (cons (count-ore-for-element (car elements) rules)
-            (count-ore-for-elements (cdr elements) rules))))
+;; Remove the item from an a-list.
+(defun assoc-rm (item lst)
+  (cond ((null lst) nil)
+	((eq item (caar lst)) (cdr lst))
+	(t (cons (car lst) (assoc-rm item (cdr lst))))))
+
+;; Takes the alist with amounts of items, and maybe applies the given rule.
+;; (apply-rule '((FUEL . 3)(A . 1)) '((FUEL . 1)(A . 2)(B . 3)))
+;; -> '((A . 7)(B . 9))
+(defun apply-rule (inventory rule)
+  (let* ((lhs (car rule))
+	 (rhs (cdr rule))
+         (rule-element (car lhs))
+         (rule-amount (cdr lhs))
+         (inv-entry (assoc rule-element inventory))
+	 (inv-amount (cdr inv-entry)))
+    (if inv-entry
+	;; The rule is relevant. Figure out how many times to apply it.
+	(let* ((factor (ceiling inv-amount rule-amount))
+	       ;; Multiply all the items in the lhs by the given amount.
+	       (factored-rule (mapcar (lambda (cell)
+					(cons (car cell)
+					      (* factor (cdr cell))))
+				      rhs))
+	       (added-inv (reduce (lambda (inv rule-entry)
+				    (assoc-inc (car rule-entry)
+					       (cdr rule-entry) inv))
+				  factored-rule
+				  :initial-value inventory))
+	       (new-inv (assoc-rm rule-element added-inv)))
+	  new-inv))))
+
+(defun amount-if-only-ore (inventory)
+  (cond ((cdr inventory) nil)                  ; Inventory has multiple items.
+	((not (eq 'ORE (caar inventory))) nil) ; Item isn't ORE.
+	(t (cdar inventory))))
+
+(defun apply-rules-int (inventory remaining-rules all-rules prefix)
+  (let ((rule (car remaining-rules))
+	(inner-prefix (format nil "    ~A" prefix))
+	(ore-count (amount-if-only-ore inventory)))
+    (cond ((not (null ore-count))              ; We're done.
+           (format t "~A ORE = ~A~%" prefix ore-count)
+           ore-count)
+          (remaining-rules                     ; There are still more rules.
+           (format t "~A Trying rule ~A~%" prefix rule)
+           (let ((new-inv (apply-rule inventory rule)))
+             (cond (new-inv
+                    (format t "~A  Got new inventory ~A~%" prefix new-inv)
+                    (apply-rules-int new-inv all-rules all-rules inner-prefix))
+                   (t (format t "~A  Rule doesn't apply.~%" prefix))))
+           ;; Try the other rules.
+           (apply-rules-int inventory (cdr remaining-rules) all-rules prefix)))))
+
+(defun apply-rules (inventory rules)
+  (apply-rules-int inventory rules rules ""))
 
 (setq rules (read-file "input1.txt"))
 
-(setq ore (count-ore-for-elements '((1 FUEL)) rules))
+; (setq ore (count-ore-for-elements '((1 FUEL)) rules))
