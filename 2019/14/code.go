@@ -22,15 +22,19 @@ func (elem *Element) String() string {
 type Equation struct {
 	Consequent *Element
 	Antecedent []*Element
+	Str        string
 }
 
 func (eq *Equation) String() string {
-	parts := make([]string, len(eq.Antecedent))
-	for i, elem := range eq.Antecedent {
-		parts[i] = elem.String()
-	}
-	ant := strings.Join(parts, ", ")
-	return fmt.Sprintf("%s => %s", ant, eq.Consequent)
+	/*
+		parts := make([]string, len(eq.Antecedent))
+		for i, elem := range eq.Antecedent {
+			parts[i] = elem.String()
+		}
+		ant := strings.Join(parts, ", ")
+		return fmt.Sprintf("%s => %s", ant, eq.Consequent)
+	*/
+	return eq.Str
 }
 
 func ParseItem(s string) *Element {
@@ -64,6 +68,7 @@ func ParseEquation(s string) *Equation {
 	return &Equation{
 		Consequent: ParseItem(parts[1]),
 		Antecedent: ParseList(parts[0]),
+		Str:        s,
 	}
 }
 
@@ -99,8 +104,9 @@ type Inventory struct {
 
 func (inv *Inventory) String() string {
 	keys := make([]string, 0, len(inv.Items))
-	for s, n := range inv.Items {
-		keys = append(keys, fmt.Sprintf("%s:%d", s, n))
+	for s, _ := range inv.Items {
+		//keys = append(keys, fmt.Sprintf("%s:%d", s, n))
+		keys = append(keys, s)
 	}
 	sort.Strings(keys)
 	return strings.Join(keys, ",")
@@ -114,67 +120,90 @@ func (inv *Inventory) OreOnlyAmount() (int, bool) {
 	return amt, ok
 }
 
-func (inv *Inventory) ApplyRule(rule *Equation) *Inventory {
-	invAmt, ok := inv.Items[rule.Consequent.Element]
+func (inv *Inventory) ApplyEquation(eq *Equation) *Inventory {
+	invAmt, ok := inv.Items[eq.Consequent.Element]
 	if !ok {
 		return nil
 	}
 
-	factor := int(math.Ceil(float64(invAmt) / float64(rule.Consequent.Amount)))
-	newItems := make(map[string]int)
+	factor := int(math.Ceil(float64(invAmt) / float64(eq.Consequent.Amount)))
+	newItems := make(map[string]int, len(inv.Items))
 	for elem, amount := range inv.Items {
 		newItems[elem] = amount
 	}
-	for _, elem := range rule.Antecedent {
+	for _, elem := range eq.Antecedent {
 		newItems[elem.Element] += factor * elem.Amount
 	}
-	delete(newItems, rule.Consequent.Element)
+	delete(newItems, eq.Consequent.Element)
 	return &Inventory{Items: newItems}
 }
 
-func TestApplyRule() {
+func TestApplyEquation() {
 	inv := &Inventory{map[string]int{"FUEL": 3, "A": 1}}
 	rule := &Equation{
 		Consequent: &Element{"FUEL", 1},
 		Antecedent: []*Element{&Element{"A", 2}, &Element{"B", 3}},
 	}
 
-	newInv := inv.ApplyRule(rule)
+	newInv := inv.ApplyEquation(rule)
 	fmt.Printf("Result: %v", newInv)
 }
 
-func SearchBF(rules []*Equation) {
-	i := 0
-	invs := []*Inventory{&Inventory{Items: map[string]int{"FUEL": 1}}}
-	testedInventories := make(map[string]bool)
-	for {
-		fmt.Printf("Pass %d: %d inventories\n", i, len(invs))
-		i++
+type SearchState struct {
+	Inventory     *Inventory
+	EquationsUsed map[string]int
+}
 
-		// Check whether any inventory is complete.
-		for _, inv := range invs {
-			amt, ok := inv.OreOnlyAmount()
-			if ok {
-				fmt.Printf("ORE: %d\n", amt)
-				return
-			}
-		}
+func (state *SearchState) MaybeApplyEquation(eq *Equation, limit int) *SearchState {
+	// If we've already used this equation too much, then don't try it again.
+	if state.EquationsUsed[eq.String()] >= limit {
+		return nil
+	}
+	// Try the equation.
+	newInv := state.Inventory.ApplyEquation(eq)
+	if newInv == nil {
+		return nil
+	}
+	// Build the new state.
+	newUsed := make(map[string]int, len(state.EquationsUsed)+1)
+	for s, n := range state.EquationsUsed {
+		newUsed[s] = n
+	}
+	newUsed[eq.String()] = newUsed[eq.String()] + 1
+	return &SearchState{Inventory: newInv, EquationsUsed: newUsed}
+}
+
+func SearchBFS(equations []*Equation, equationLimit int) {
+	states := []*SearchState{
+		&SearchState{Inventory: &Inventory{Items: map[string]int{"FUEL": 1}}},
+	}
+	testedInventories := make(map[string]bool, 10000000)
+	for i := 0; true; i++ {
+		fmt.Printf("Pass %d: %d inventories\n", i, len(states))
 
 		// Loop over the rules and expand the possible cases.
-		next := []*Inventory{}
-		for _, rule := range rules {
-			for _, oldInv := range invs {
-				newInv := oldInv.ApplyRule(rule)
-				if newInv != nil {
-					s := newInv.String()
+		nextStates := []*SearchState{}
+		for si, oldState := range states {
+			for _, eq := range equations {
+				fmt.Printf("%d/%d\r", si, len(states))
+				newState := oldState.MaybeApplyEquation(eq, equationLimit)
+				if newState != nil {
+					s := newState.Inventory.String()
 					if !testedInventories[s] {
+						// Test whether we're done here.
+						amt, ok := newState.Inventory.OreOnlyAmount()
+						if ok {
+							fmt.Printf("ORE: %d\n", amt)
+							return
+						}
+
 						testedInventories[s] = true
-						next = append(next, newInv)
+						nextStates = append(nextStates, newState)
 					}
 				}
 			}
 		}
-		invs = next
+		states = nextStates
 	}
 }
 
@@ -196,17 +225,17 @@ func main() {
 	fmt.Printf("Elements: %d\n\n", CountElements(equations))
 
 	//TestApplyRule()
-	SearchBF(equations)
+	SearchBFS(equations, 1)
 }
 
 /*
 
 Input | Elems | Passes | Ore     | Time (s)
 ------|-------|--------|---------|----------
-    1 |     7 |      6 |      31 |      0.3
-    2 |     8 |      7 |     165 |      0.8
-    3 |    10 |      9 |   13312 |      0.3
-		4 |    13 |     12 |  180697 |      8.5
-		5 |    18 |        |         |
-
+    1 |     7 |      5 |      31 |      0.3
+    2 |     8 |      6 |     165 |      0.8
+    3 |    10 |      8 |   13312 |      0.3
+		4 |    13 |     11 |  180697 |      1.2
+		5 |    18 |     16 | 2210736 |      6.7
+    - |    64 |      ? |       ? |        ?
 */
