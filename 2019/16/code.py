@@ -5,31 +5,39 @@ def pattern(digit, n):
     x = x + x
   return x[1:n+1]
 
-def update(input, pattern):
-  n = 0
-  for i in range(len(input)):
-    n = n + input[i] * pattern[i % len(pattern)]
-  n = abs(n)%10
-  return n
+# O(n)
+def update(input, pattern, n):
+  x = 0
+  for i in range(n):
+    x = x + input[i] * pattern[i]
+  x = abs(x)%10
+  return x
 
-def phase(input):
-  n = len(input)
-  output = [0]*n
+# O(n^2)
+def phase(n, input, patterns, output):
   print("n = %d" % n)
   for i in range(n):
     # print("computing digit %d" % (i+1))
-    p = pattern(i+1, n)
-    # print("pattern = %s" % repr(p))
-    output[i] = update(input, p)
-  return output
+    # print("pattern = %s" % repr(patterns[i]))
+    output[i] = update(input, patterns[i], n)
 
-# start = [1,2,3,4,5,6,7,8]
-# start = [int(x) for x in "80871224585914546619083218645595"]
-start = [int(x) for x in open("input.txt").read()]
+def main():
+  # start = [1,2,3,4,5,6,7,8]
+  # start = [int(x) for x in "80871224585914546619083218645595"]
+  start = [int(x) for x in open("input.txt").read()*10000]
+  n = len(start)
+  patterns = [None]*n
+  for i in range(n):
+    patterns[i] = pattern(i+1, n)
 
-signal = start
-for i in range(100):
-  signal = phase(signal)
+  signal = start
+  output = [0]*n
+  for i in range(100):
+    phase(n, signal, patterns, output)
+    signal = output
+
   print(''.join([str(x) for x in signal]))
+
+main()
 
 # 1: 58100105
