@@ -45,6 +45,7 @@ func (pos Position) Add(dir Direction) Position {
 
 type Space struct {
 	Map      map[Position]SpaceTile
+	GoalDist map[Position]int
 	Min      Position
 	Max      Position
 	Robot    Position
@@ -57,6 +58,7 @@ type Space struct {
 func NewSpace(in <-chan int, out chan<- int, outReady <-chan bool) *Space {
 	return &Space{
 		Map:      make(map[Position]SpaceTile),
+		GoalDist: make(map[Position]int),
 		Min:      Position{X: 0, Y: 0},
 		Max:      Position{X: 0, Y: 0},
 		Robot:    Position{X: 0, Y: 0},
@@ -93,6 +95,42 @@ func (space *Space) Draw() {
 	fmt.Println("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 }
 
+func (space *Space) LetterForDistance(pos Position) int {
+	dist, ok := space.GoalDist[pos]
+	if !ok {
+		return '?'
+	}
+	return dist/20 + 'A'
+
+}
+
+func (space *Space) CycleDist() bool {
+	updated := false
+	fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+	for row := space.Min.Y; row <= space.Max.Y; row++ {
+		for col := space.Min.X; col <= space.Max.X; col++ {
+			pos := Position{X: col, Y: row}
+			tile := space.Map[pos]
+			switch tile {
+			case Unknown:
+				fmt.Print(" ")
+			case Empty:
+				if space.UpdateGoalDists(pos) {
+					updated = true
+				}
+				fmt.Printf("%c", space.LetterForDistance(pos))
+			case Wall:
+				fmt.Print("#")
+			case Goal:
+				fmt.Print("@")
+			}
+		}
+		fmt.Println()
+	}
+	fmt.Println("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+	return updated
+}
+
 func (dir Direction) Opposite() Direction {
 	switch dir {
 	case North:
@@ -119,6 +157,31 @@ func (dir Direction) Delta() (int, int) {
 		return 1, 0
 	}
 	panic("unknown direction")
+}
+
+func (space *Space) UpdateGoalDists(pos Position) bool {
+	if _, ok := space.GoalDist[pos]; ok {
+		return false
+	}
+
+	found := false
+	min := 0
+
+	positions := []Position{pos.Add(North), pos.Add(South), pos.Add(East), pos.Add(West)}
+	for _, p := range positions {
+		d, ok := space.GoalDist[p]
+		if ok && (!found || d+1 < min) {
+			min = d + 1
+			found = true
+		}
+	}
+
+	if !found {
+		return false
+	}
+
+	space.GoalDist[pos] = min
+	return true
 }
 
 func (space *Space) TryDirection(dir Direction) {
@@ -154,6 +217,7 @@ func (space *Space) TryDirection(dir Direction) {
 		if response == FoundGoal {
 			space.Map[newPos] = Goal
 			space.Goal = newPos
+			space.GoalDist[newPos] = 0
 		} else {
 			space.Map[newPos] = Empty
 		}
@@ -179,85 +243,27 @@ func (space *Space) Run() {
 	space.Explore()
 }
 
-func (space *Space) MeasureGoalDistance(pos Position, cache map[Position]int, visited map[Position]bool) (int, bool) {
-	if visited[pos] {
-		return 0, false
+func (space *Space) GetMaxGoalDistance() int {
+	max := 0
+	for row := space.Min.Y; row <= space.Max.Y; row++ {
+		for col := space.Min.X; col <= space.Max.X; col++ {
+			pos := Position{X: col, Y: row}
+			if space.Map[pos] == Empty {
+				dist, ok := space.GoalDist[pos]
+				if !ok {
+					panic("unmeasured distance")
+				}
+				if dist > max {
+					max = dist
+				}
+			}
+		}
 	}
-
-	// Check whether we're off the map.
-	if pos.X < space.Min.X {
-		return 0, false
-	}
-	if pos.Y < space.Min.Y {
-		return 0, false
-	}
-	if pos.X > space.Max.X {
-		return 0, false
-	}
-	if pos.Y > space.Max.Y {
-		return 0, false
-	}
-	if space.Map[pos] == Wall {
-		return 0, false
-	}
-	if space.Map[pos] == Unknown {
-		return 0, false
-	}
-
-	// Check for the goal state.
-	if space.Map[pos] == Goal {
-		return 0, true
-	}
-
-	// Check the cache.
-	if v, ok := cache[pos]; ok {
-		return v, true
-	}
-
-	// Check the directions.
-	min := 0
-	found := false
-	visited[pos] = true
-
-	s, ok := space.MeasureGoalDistance(pos.Add(South), cache, visited)
-	if ok && (!found || s < min) {
-		min = s
-		found = true
-	}
-	n, ok := space.MeasureGoalDistance(pos.Add(North), cache, visited)
-	if ok && (!found || n < min) {
-		min = n
-		found = true
-	}
-	e, ok := space.MeasureGoalDistance(pos.Add(East), cache, visited)
-	if ok && (!found || e < min) {
-		min = e
-		found = true
-	}
-	w, ok := space.MeasureGoalDistance(pos.Add(West), cache, visited)
-	if ok && (!found || w < min) {
-		min = w
-		found = true
-	}
-	visited[pos] = false
-
-	if !found {
-		return 0, false
-	}
-
-	cache[pos] = min + 1
-	return min + 1, true
+	return max
 }
 
 func (space *Space) GetGoalDistance() int {
-	pos := Position{X: 0, Y: 0}
-	cache := make(map[Position]int)
-	visited := make(map[Position]bool)
-	d, found := space.MeasureGoalDistance(pos, cache, visited)
-	if !found {
-		panic("couldn't find goal")
-	}
-	return d
+	return space.GoalDist[Position{X: 0, Y: 0}]
 }
 
 type Computer struct {
@@ -471,7 +477,13 @@ func main() {
 	space.Run()
 	close(in)
 
-	fmt.Printf("goal distance: %d\n", space.GetGoalDistance())
+	for space.CycleDist() {
+	}
+
+	dist := space.GetGoalDistance()
+	max := space.GetMaxGoalDistance()
+	fmt.Printf("goal distance: %d\nmax distance: %d\n", dist, max)
 }
 
 // 1: 296
+// 2: 302
