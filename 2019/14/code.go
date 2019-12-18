@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+//
+// Parsing
+//
+
 type Element struct {
 	Element string
 	Amount  int
@@ -26,14 +30,6 @@ type Equation struct {
 }
 
 func (eq *Equation) String() string {
-	/*
-		parts := make([]string, len(eq.Antecedent))
-		for i, elem := range eq.Antecedent {
-			parts[i] = elem.String()
-		}
-		ant := strings.Join(parts, ", ")
-		return fmt.Sprintf("%s => %s", ant, eq.Consequent)
-	*/
 	return eq.Str
 }
 
@@ -120,6 +116,10 @@ func (inv *Inventory) OreOnlyAmount() (int, bool) {
 	return amt, ok
 }
 
+//
+// Backward Inference Logic
+//
+
 func (inv *Inventory) ApplyEquation(eq *Equation) *Inventory {
 	invAmt, ok := inv.Items[eq.Consequent.Element]
 	if !ok {
@@ -148,6 +148,10 @@ func TestApplyEquation() {
 	newInv := inv.ApplyEquation(rule)
 	fmt.Printf("Result: %v", newInv)
 }
+
+//
+// Backward Inference Breadth-First Search
+//
 
 type SearchState struct {
 	Inventory     *Inventory
@@ -207,6 +211,101 @@ func SearchBFS(equations []*Equation, equationLimit int) {
 	}
 }
 
+//
+// Forward Inference Equation Simplification
+//
+func SimplifyEquations(eqs []*Equation) {
+	byElement := make(map[string][]*Equation)
+
+	// Initialize all the arrays.
+	for _, eq := range eqs {
+		byElement[eq.Consequent.Element] = []*Equation{}
+		for _, elem := range eq.Antecedent {
+			byElement[elem.Element] = []*Equation{}
+		}
+	}
+
+	// Populate the arrays.
+	for _, eq := range eqs {
+		byElement[eq.Consequent.Element] = append(byElement[eq.Consequent.Element], eq)
+		for _, elem := range eq.Antecedent {
+			byElement[elem.Element] = append(byElement[elem.Element], eq)
+		}
+	}
+
+	// Get the unique list of elements for sorting.
+	elems := make([]string, 0, len(byElement))
+	for elem, _ := range byElement {
+		elems = append(elems, elem)
+	}
+	sort.Strings(elems)
+
+	// Print the maps.
+	for _, elem := range elems {
+		fmt.Printf("%s:\n", elem)
+		eqs := byElement[elem]
+		for _, eq := range eqs {
+			fmt.Printf("  %s\n", eq.String())
+		}
+	}
+}
+
+//
+// Linear Equations Experiment
+//
+
+func SolveEquations(eqs []*Equation) {
+	elemSet := make(map[string]bool)
+	for _, eq := range eqs {
+		elemSet[eq.Consequent.Element] = true
+		for _, elem := range eq.Antecedent {
+			elemSet[elem.Element] = true
+		}
+	}
+
+	// Get the unique list of elements for sorting.
+	elems := make([]string, 0, len(elemSet))
+	for elem, _ := range elemSet {
+		elems = append(elems, elem)
+	}
+	sort.Strings(elems)
+
+	// Make a giant empty matrix.
+	matrix := make([][]float32, len(eqs))
+	for i, _ := range matrix {
+		matrix[i] = make([]float32, len(elems)+1)
+	}
+
+	// Fill in the values.
+	for row, eq := range eqs {
+		for col, elem := range elems {
+			if elem == eq.Consequent.Element {
+				matrix[row][col] = float32(-eq.Consequent.Amount)
+			}
+			for _, ee := range eq.Antecedent {
+				if elem == ee.Element {
+					matrix[row][col] = float32(ee.Amount)
+				}
+			}
+		}
+	}
+
+	// Solve the matrix.
+	for row, rowVec := range matrix {
+		pivotAmt := rowVec[row]
+		for col, _ := range rowVec {
+			rowVec[col] = rowVec[col] / pivotAmt
+		}
+	}
+
+	fmt.Printf("Elements: %v\n", elems)
+	fmt.Printf("Matrix: %v\n", matrix)
+}
+
+//
+// Metrics
+//
+
 func CountElements(eqs []*Equation) int {
 	e := make(map[string]bool)
 	for _, eq := range eqs {
@@ -224,8 +323,10 @@ func main() {
 	fmt.Printf("%v\n\n", EquationsToString(equations))
 	fmt.Printf("Elements: %d\n\n", CountElements(equations))
 
-	//TestApplyRule()
-	SearchBFS(equations, 1)
+	// TestApplyRule()
+	// SearchBFS(equations, 1)
+	// SimplifyEquations(equations)
+	SolveEquations(equations)
 }
 
 /*
