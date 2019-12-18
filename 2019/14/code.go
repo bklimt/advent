@@ -272,6 +272,8 @@ func SearchDFS(equations []*Equation, equationLimit int, state *SearchState) boo
 //
 func SimplifyEquations(eqs []*Equation) {
 	byElement := make(map[string][]*Equation)
+	elemScore := make(map[string]int)
+	eqScore := make(map[string]int)
 
 	// Initialize all the arrays.
 	for _, eq := range eqs {
@@ -283,11 +285,45 @@ func SimplifyEquations(eqs []*Equation) {
 
 	// Populate the arrays.
 	for _, eq := range eqs {
+		eqScore[eq.String()] = -1
+
 		byElement[eq.Consequent.Element] = append(byElement[eq.Consequent.Element], eq)
 		for _, elem := range eq.Antecedent {
 			byElement[elem.Element] = append(byElement[elem.Element], eq)
 		}
 	}
+
+	// Compute element scores.
+	elemScore["ORE"] = 0
+	updated := true
+	fmt.Printf("Computing element scores")
+	for updated {
+		fmt.Printf(".")
+		updated = false
+		for _, eq := range eqs {
+			if _, ok := elemScore[eq.Consequent.Element]; ok {
+				continue
+			}
+
+			valid := true
+			maxScore := -1
+			for _, elem := range eq.Antecedent {
+				if score, ok := elemScore[elem.Element]; ok {
+					if score > maxScore {
+						maxScore = score
+					}
+				} else {
+					valid = false
+				}
+			}
+			if valid {
+				elemScore[eq.Consequent.Element] = maxScore + 1
+				eqScore[eq.String()] = maxScore + 1
+				updated = true
+			}
+		}
+	}
+	fmt.Printf("\n")
 
 	// Get the unique list of elements for sorting.
 	elems := make([]string, 0, len(byElement))
@@ -297,12 +333,25 @@ func SimplifyEquations(eqs []*Equation) {
 	sort.Strings(elems)
 
 	// Print the maps.
+	fmt.Printf("\nElement scores:\n")
 	for _, elem := range elems {
-		fmt.Printf("%s:\n", elem)
-		eqs := byElement[elem]
-		for _, eq := range eqs {
-			fmt.Printf("  %s\n", eq.String())
+		if score, ok := elemScore[elem]; ok {
+			fmt.Printf("%d: ", score)
+		} else {
+			fmt.Println("?: ")
 		}
+		fmt.Printf("%s\n", elem)
+		/*
+			eqs := byElement[elem]
+			for _, eq := range eqs {
+				fmt.Printf("  %s\n", eq.String())
+			}
+		*/
+	}
+
+	fmt.Printf("\nEquation scores:\n")
+	for eq, score := range eqScore {
+		fmt.Printf("%d: %s\n", score, eq)
 	}
 }
 
@@ -328,10 +377,10 @@ func main() {
 	fmt.Printf("Elements: %d\n\n", CountElements(equations))
 
 	// TestApplyRule()
-	SearchBFS(equations, 1)
+	// SearchBFS(equations, 1)
 	// SearchDFS(equations, 1, nil)
 
-	// SimplifyEquations(equations)
+	SimplifyEquations(equations)
 }
 
 /*
