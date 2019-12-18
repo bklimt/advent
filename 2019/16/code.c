@@ -32,6 +32,14 @@ void phase(int *in, int *out, long n) {
   }
 }
 
+void phase2(int *in, int *out, long n) {
+  int sum = 0;
+  for (int i = n-1; i > (n/2); i--) {
+    sum += in[i];
+    out[i] = abs(sum) % 10;
+  }
+}
+
 long read_file_size(const char *path) {
   FILE *f = fopen(path, "rb");
   fseek(f, 0, SEEK_END);
@@ -54,9 +62,9 @@ void read_input(int *buf, const char *path, long n) {
 }
 
 // Copies the first n bytes of the buffer m times.
-void dup_buffer(int *buf, int n, int m) {
+void dup_buffer(int *buf, long n, int m) {
   for (int i = 1; i < m; i++) {
-    memcpy(buf + n * i, buf, n);
+    memcpy(buf + n * i, buf, n * sizeof(int));
   }
 }
 
@@ -87,14 +95,23 @@ int main(int argc, char **argv) {
   read_input(buf1, path, fs);
   dup_buffer(buf1, fs, dup_count);
 
+  print_buffer(buf1, fs * 3);
+  
+  // 16.2:
+  // We actually only care about offset 5970443.
+  // The input length is 6500000.
+  // The offset we care about is more than halfway down the matrix...
+
   for (int i = 0; i < 100; i++) {
     printf("phase %d...\n", i);
-    phase(buf1, buf2, n);
+    phase2(buf1, buf2, n);
     int *tmp = buf1;
     buf1 = buf2;
     buf2 = tmp;
   }
-  print_buffer(buf1, n);
+  //print_buffer(buf1, n);
+  print_buffer(buf1+5970443, 8);
+  //print_buffer(buf1+303673, 8);
 
   return 0;
 }
