@@ -156,6 +156,8 @@ func TestApplyEquation() {
 type SearchState struct {
 	Inventory     *Inventory
 	EquationsUsed map[string]int
+	Depth         int
+	Path          []int
 }
 
 func (state *SearchState) MaybeApplyEquation(eq *Equation, limit int) *SearchState {
@@ -174,7 +176,7 @@ func (state *SearchState) MaybeApplyEquation(eq *Equation, limit int) *SearchSta
 		newUsed[s] = n
 	}
 	newUsed[eq.String()] = newUsed[eq.String()] + 1
-	return &SearchState{Inventory: newInv, EquationsUsed: newUsed}
+	return &SearchState{Inventory: newInv, EquationsUsed: newUsed, Depth: state.Depth + 1}
 }
 
 func SearchBFS(equations []*Equation, equationLimit int) {
@@ -183,13 +185,23 @@ func SearchBFS(equations []*Equation, equationLimit int) {
 	}
 	testedInventories := make(map[string]bool, 10000000)
 	for i := 0; true; i++ {
-		fmt.Printf("Pass %d: %d inventories\n", i, len(states))
+		fmt.Printf("BFS pass %d: %d inventories\n", i, len(states))
 
 		// Loop over the rules and expand the possible cases.
 		nextStates := []*SearchState{}
 		for si, oldState := range states {
+			fmt.Printf("bfs: %d/%d         \r", si, len(states))
+
+			/*
+				if len(states) > 100 {
+					if SearchDFS(equations, equationLimit, testedInventories, oldState) {
+						return
+					}
+					continue
+				}
+			*/
+
 			for _, eq := range equations {
-				fmt.Printf("%d/%d\r", si, len(states))
 				newState := oldState.MaybeApplyEquation(eq, equationLimit)
 				if newState != nil {
 					s := newState.Inventory.String()
@@ -197,7 +209,7 @@ func SearchBFS(equations []*Equation, equationLimit int) {
 						// Test whether we're done here.
 						amt, ok := newState.Inventory.OreOnlyAmount()
 						if ok {
-							fmt.Printf("ORE: %d\n", amt)
+							fmt.Printf("\nORE: %d\n", amt)
 							return
 						}
 
@@ -209,6 +221,50 @@ func SearchBFS(equations []*Equation, equationLimit int) {
 		}
 		states = nextStates
 	}
+}
+
+func SearchDFS(equations []*Equation, equationLimit int, state *SearchState) bool {
+	if state == nil {
+		state = &SearchState{
+			Inventory: &Inventory{Items: map[string]int{"FUEL": 1}},
+			Path:      make([]int, 0, len(equations)*equationLimit),
+		}
+	}
+	if len(state.Path) == 0 {
+		state.Path = append(state.Path, 0)
+	}
+	//if state.Path[len(state.Path)-1] == 0 {
+	fmt.Printf("dfs: [%d/%d] ", state.Depth, len(equations)*equationLimit)
+	for _, n := range state.Path {
+		fmt.Printf("%d / ", n)
+	}
+	fmt.Printf("                                    \r")
+	//}
+	// Loop over the rules and expand the possible cases.
+	for i, eq := range equations {
+		newState := state.MaybeApplyEquation(eq, equationLimit)
+		if newState != nil {
+			newState.Path = make([]int, len(state.Path), len(equations)*equationLimit)
+			copy(newState.Path, state.Path)
+			newState.Path = append(newState.Path, i)
+
+			//s := newState.Inventory.String()
+			// if !testedInventories[s] {
+			// Test whether we're done here.
+			amt, ok := newState.Inventory.OreOnlyAmount()
+			if ok {
+				fmt.Printf("\nORE: %d\n", amt)
+				return true
+			}
+			//testedInventories[s] = true
+
+			if SearchDFS(equations, equationLimit, newState) {
+				return true
+			}
+			//}
+		}
+	}
+	return false
 }
 
 //
@@ -251,58 +307,6 @@ func SimplifyEquations(eqs []*Equation) {
 }
 
 //
-// Linear Equations Experiment
-//
-
-func SolveEquations(eqs []*Equation) {
-	elemSet := make(map[string]bool)
-	for _, eq := range eqs {
-		elemSet[eq.Consequent.Element] = true
-		for _, elem := range eq.Antecedent {
-			elemSet[elem.Element] = true
-		}
-	}
-
-	// Get the unique list of elements for sorting.
-	elems := make([]string, 0, len(elemSet))
-	for elem, _ := range elemSet {
-		elems = append(elems, elem)
-	}
-	sort.Strings(elems)
-
-	// Make a giant empty matrix.
-	matrix := make([][]float32, len(eqs))
-	for i, _ := range matrix {
-		matrix[i] = make([]float32, len(elems)+1)
-	}
-
-	// Fill in the values.
-	for row, eq := range eqs {
-		for col, elem := range elems {
-			if elem == eq.Consequent.Element {
-				matrix[row][col] = float32(-eq.Consequent.Amount)
-			}
-			for _, ee := range eq.Antecedent {
-				if elem == ee.Element {
-					matrix[row][col] = float32(ee.Amount)
-				}
-			}
-		}
-	}
-
-	// Solve the matrix.
-	for row, rowVec := range matrix {
-		pivotAmt := rowVec[row]
-		for col, _ := range rowVec {
-			rowVec[col] = rowVec[col] / pivotAmt
-		}
-	}
-
-	fmt.Printf("Elements: %v\n", elems)
-	fmt.Printf("Matrix: %v\n", matrix)
-}
-
-//
 // Metrics
 //
 
@@ -324,9 +328,10 @@ func main() {
 	fmt.Printf("Elements: %d\n\n", CountElements(equations))
 
 	// TestApplyRule()
-	// SearchBFS(equations, 1)
+	SearchBFS(equations, 1)
+	// SearchDFS(equations, 1, nil)
+
 	// SimplifyEquations(equations)
-	SolveEquations(equations)
 }
 
 /*
