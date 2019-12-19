@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace code
 {
@@ -148,22 +149,110 @@ namespace code
             while (UpdateLandmarks()) { }
         }
 
-        public IEnumerable<char> GetReachableLandmarks(char start)
+        public Dictionary<char, int> GetReachableLandmarks(char start)
         {
             var t = landmarks[start];
             var row = t.Item1;
             var col = t.Item2;
-            var keys = Tiles[row, col].landmarkDists.Keys;
-            return keys;
+            return Tiles[row, col].landmarkDists;
+        }
+
+        class Path
+        {
+            public int Distance { get; set; }
+            public HashSet<char> KeysNeeded { get; set; } = new HashSet<char>();
+        }
+
+        private static Path MergePaths(Path p1, Path p2)
+        {
+            Path p = new Path();
+            p.Distance = p1.Distance + p2.Distance;
+            p.KeysNeeded.UnionWith(p1.KeysNeeded);
+            p.KeysNeeded.UnionWith(p2.KeysNeeded);
+            return p;
+        }
+
+        class PathSet
+        {
+            public List<Path> Paths { get; set; } = new List<Path>();
+
+            public void ReducePaths()
+            {
+                // Now what??
+                // For every path, if there's another path that's shorter and requires fewer keys, remove it.
+            }
         }
 
         public void Search()
         {
-            char current = '@';
-            var reachable = GetReachableLandmarks(current);
-            foreach (var key in reachable)
+            // First, build an adjacency matrix with the set of shortest paths from
+            // each key to each key, along with what keys are needed to make that path.
+            var indexToLandmark = new List<char>(landmarks.Keys);
+            var landmarkToIndex = new Dictionary<char, int>();
+            var count = indexToLandmark.Count;
+            for (int i = 0; i < count; i++)
             {
-                Console.WriteLine("Reachable: {0}", key);
+                landmarkToIndex[indexToLandmark[i]] = i;
+            }
+            var matrix = new PathSet[count, count];
+            for (int i = 0; i < count; i++)
+            {
+                for (int j = 0; j < count; j++)
+                {
+                    matrix[i, j] = new PathSet();
+                }
+            }
+            // Start with everything directly reachable.
+            for (int i = 0; i < count; i++)
+            {
+                var reachable = GetReachableLandmarks(indexToLandmark[i]);
+                foreach (var t in reachable)
+                {
+                    var j = landmarkToIndex[t.Key];
+                    var path = new Path();
+                    path.Distance = t.Value;
+                    matrix[i, j].Paths.Add(path);
+                }
+            }
+            // Now build up all the derivative steps.
+            for (int m = 0; m < count; m++)
+            {
+                Console.WriteLine("Passes: {0} of {1}", m, count);
+                for (int i = 0; i < count; i++)
+                {
+                    Console.WriteLine("Row: {0} of {1}", i, count);
+                    for (int j = 0; j < count; j++)
+                    {
+                        Console.WriteLine("Column: {0} of {1}", j, count);
+                        if (i == j)
+                        {
+                            continue;
+                        }
+                        var op = matrix[i, j];
+                        for (int k = 0; k < count; k++)
+                        {
+                            Console.WriteLine("Intermediate: {0} of {1}", k, count);
+                            if (i == k || j == k)
+                            {
+                                continue;
+                            }
+                            // Is there a shorter path from i to j through k?
+                            var ps1 = matrix[i, k];
+                            var ps2 = matrix[k, j];
+                            if (ps1.Paths.Count > 0 && ps2.Paths.Count > 0)
+                            {
+                                foreach (var p1 in ps1.Paths)
+                                {
+                                    foreach (var p2 in ps2.Paths)
+                                    {
+                                        op.Paths.Add(MergePaths(p1, p2));
+                                        op.ReducePaths();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
