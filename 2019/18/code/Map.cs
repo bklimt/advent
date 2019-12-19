@@ -178,8 +178,33 @@ namespace code
 
             public void ReducePaths()
             {
-                // Now what??
-                // For every path, if there's another path that's shorter and requires fewer keys, remove it.
+                // For every path, if there's another path that's shorter and
+                // requires fewer keys, remove it.
+                for (int i = Paths.Count - 1; i >= 0; i--)
+                {
+                    bool remove = false;
+                    for (int j = 0; j < Paths.Count; j++)
+                    {
+                        if (i == j)
+                        {
+                            continue;
+                        }
+                        if (Paths[j].Distance < Paths[i].Distance)
+                        {
+                            // J is shorter than I, but does it need fewer or equal locks?
+                            if (Paths[j].KeysNeeded.IsSubsetOf(Paths[i].KeysNeeded))
+                            {
+                                remove = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (remove)
+                    {
+                        Paths.RemoveAt(i);
+                    }
+                }
+
             }
         }
 
@@ -220,10 +245,10 @@ namespace code
                 Console.WriteLine("Passes: {0} of {1}", m, count);
                 for (int i = 0; i < count; i++)
                 {
-                    Console.WriteLine("Row: {0} of {1}", i, count);
+                    Console.WriteLine("Row: {0} of {1} = {2}", i, count, indexToLandmark[i]);
                     for (int j = 0; j < count; j++)
                     {
-                        Console.WriteLine("Column: {0} of {1}", j, count);
+                        Console.WriteLine("Column: {0} of {1} = {2}", j, count, indexToLandmark[j]);
                         if (i == j)
                         {
                             continue;
@@ -231,11 +256,12 @@ namespace code
                         var op = matrix[i, j];
                         for (int k = 0; k < count; k++)
                         {
-                            Console.WriteLine("Intermediate: {0} of {1}", k, count);
+                            // Console.WriteLine("Intermediate: {0} of {1}", k, count);
                             if (i == k || j == k)
                             {
                                 continue;
                             }
+                            // TODO: If k is a lock, add it to keysNeeded.
                             // Is there a shorter path from i to j through k?
                             var ps1 = matrix[i, k];
                             var ps2 = matrix[k, j];
