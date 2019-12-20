@@ -226,7 +226,7 @@ namespace code
                 return dist;
             }
 
-            Console.WriteLine("keys={0}, dist={1}, path={2}, dupes={3}", keys.Count, dist, path, maxDupes);
+            Console.WriteLine("keys={0}, dist={1}, path={2}, dupes={3}, best={4}", keys.Count, dist, path, maxDupes, best);
 
             char current = path.Last();
 
@@ -249,14 +249,12 @@ namespace code
             // Also remove current.
             var options = from entry in reachable
                           orderby entry.Value
-                          where (!Char.IsUpper(entry.Key) || keys.Contains(entry.Key)) &&
+                          where (!Char.IsUpper(entry.Key) || keys.Contains(Char.ToLower(entry.Key))) &&
                                 entry.Key != current &&
                                 path.Count(c => c == entry.Key) <= maxDupes
                           select entry;
 
-            // TODO: Do any dupe paths after any non-dupe paths.
-
-            for (int dupes = 0; dupes < maxDupes; dupes++)
+            for (int dupes = 0; dupes <= maxDupes; dupes++)
             {
                 foreach (var entry in options)
                 {
@@ -297,10 +295,15 @@ namespace code
 
         public void Search()
         {
-            int maxPath = 150;
+            int best = -1;
+            int maxPath = 100;
             for (int i = 0; i < 10; i++)
             {
-                Search("@", 0, -1, ImmutableHashSet<char>.Empty, maxPath, i);
+                int result = Search("@", 0, best, ImmutableHashSet<char>.Empty, maxPath, i);
+                if (result != -1 && (best == -1 || result < best))
+                {
+                    best = result;
+                }
             }
         }
     }
