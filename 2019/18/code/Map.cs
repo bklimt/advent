@@ -213,12 +213,20 @@ namespace code
             }
         }
 
-        public int Search(string path, int dist, int best, ImmutableHashSet<char> keys)
+        public int Search(string path, int dist, int best, ImmutableHashSet<char> keys, int maxPath)
         {
+            // Don't recurse too deeply.
+            if (path.Length > maxPath)
+            {
+                return -1;
+            }
+
             if (keys.Count == KeyCount)
             {
                 return dist;
             }
+
+            Console.WriteLine("keys={0}, dist={1}, path={2}", keys.Count, dist, path);
 
             char current = path.Last();
 
@@ -240,8 +248,10 @@ namespace code
             // Remove any lock that we don't have a key for.
             var options = from entry in reachable
                           orderby entry.Value
-                          where !Char.IsUpper(entry.Key) || keys.Contains(entry.Key)
+                          where (!Char.IsUpper(entry.Key) || keys.Contains(entry.Key)) && entry.Key != current
                           select entry;
+
+            // TODO: Do any dupe paths after any non-dupe paths.
 
             foreach (var entry in options)
             {
@@ -263,10 +273,15 @@ namespace code
                     continue;
                 }
                 // Okay, this is a valid path. Traverse it.
-                int result = Search(path + c, dist + d, best, keys);
+                int result = Search(path + c, dist + d, best, keys, maxPath);
+                // It didn't work out, probably because of pruning.
+                if (result == -1)
+                {
+                    continue;
+                }
                 if (best == -1 || result < best)
                 {
-                    Console.WriteLine("Best: {} = {}", path + c, result);
+                    Console.WriteLine("Best: {0} = {1}", path + c, result);
                     best = result;
                 }
             }
@@ -276,7 +291,8 @@ namespace code
 
         public void Search()
         {
-            Search("@", 0, -1, ImmutableHashSet<char>.Empty);
+            int maxPath = 150;
+            Search("@", 0, -1, ImmutableHashSet<char>.Empty, maxPath);
         }
     }
 }
