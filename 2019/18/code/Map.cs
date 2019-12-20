@@ -213,98 +213,126 @@ namespace code
             }
         }
 
-        public int Search(string path, int dist, int best, ImmutableHashSet<char> keys, int maxPath, int maxDupes)
+        private struct SearchState
         {
+            public string Path;
+            public int Distance;
+            public int BestDistance;
+            public ImmutableHashSet<char> Keys;
+            public int MaxPath;
+
+            override public string ToString()
+            {
+                return String.Format("keys={0}, dist={1}, path={2}, best={3}",
+                                     Keys.Count, Distance, Path, BestDistance);
+            }
+        }
+
+        // Score possible next steps.
+        private double Score(SearchState state, char option, int distance, bool gotKey)
+        {
+            char current = state.Path.Last();
+
+            // Don't just move back and forth.
+            if (state.Path.Length > 2 && option == state.Path[state.Path.Length - 3])
+            {
+                return -1;
+            }
+            // Don't go right back unless you came here to pick up a key.
+            if (!gotKey && state.Path.Length > 1 && option == state.Path[state.Path.Length - 2])
+            {
+                return -1;
+            }
+            // Cut off the path if it's longer than the best path so far.
+            if (state.BestDistance != -1 && state.Distance + distance > state.BestDistance)
+            {
+                return -1;
+            }
+            // Don't go to a lock you don't have the key to.
+            if (char.IsUpper(option) && !state.Keys.Contains(Char.ToLower(option)))
+            {
+                return -1;
+            }
+            // Don't try to go to where we already are.
+            if (option == current)
+            {
+                return -1;
+            }
+            // Demote the path by how many times it's repeated.
+            // return distance * (1 + state.Path.Count(c => c == option));
+            return Math.Pow(distance, state.Path.Count(c => c == option));
+        }
+
+        private int Search(SearchState state, char current, int dist)
+        {
+            state.Path += current;
+            state.Distance += dist;
+
             // Don't recurse too deeply.
-            if (path.Length > maxPath)
+            if (state.Path.Length > state.MaxPath)
             {
                 return -1;
             }
 
-            if (keys.Count == KeyCount)
-            {
-                return dist;
-            }
-
-            Console.WriteLine("keys={0}, dist={1}, path={2}, dupes={3}, best={4}", keys.Count, dist, path, maxDupes, best);
-
-            char current = path.Last();
+            // Console.WriteLine("{0}", state);
 
             // Chack the current spot for whether we should update state.
             bool gotKey = false;
             if (Char.IsLower(current))
             {
                 // We picked up a key maybe.
-                if (!keys.Contains(current))
+                if (!state.Keys.Contains(current))
                 {
                     gotKey = true;
-                    keys = keys.Add(current);
+                    state.Keys = state.Keys.Add(current);
                 }
+            }
+
+            if (state.Keys.Count == KeyCount)
+            {
+                return state.Distance;
             }
 
             // Get the set of every landmark reachable from this spot.
             var reachable = GetReachableLandmarks(current);
 
-            // Remove any lock that we don't have a key for.
-            // Also remove current.
+            // Sort the options by score.
             var options = from entry in reachable
-                          orderby entry.Value
-                          where (!Char.IsUpper(entry.Key) || keys.Contains(Char.ToLower(entry.Key))) &&
-                                entry.Key != current &&
-                                path.Count(c => c == entry.Key) <= maxDupes
+                          let score = Score(state, entry.Key, entry.Value, gotKey)
+                          where score >= 0
+                          orderby score
                           select entry;
 
-            for (int dupes = 0; dupes <= maxDupes; dupes++)
+            foreach (var entry in options)
             {
-                foreach (var entry in options)
+                var c = entry.Key;
+                var d = entry.Value;
+                // Okay, this is a valid path. Traverse it.
+                int result = Search(state, c, d);
+                // It didn't work out, probably because of pruning.
+                if (result == -1)
                 {
-                    var c = entry.Key;
-                    var d = entry.Value;
-                    // Don't just move back and forth.
-                    if (path.Length > 2 && c == path[path.Length - 3])
-                    {
-                        continue;
-                    }
-                    // Don't go right back unless you came here to pick up a key.
-                    if (!gotKey && path.Length > 1 && c == path[path.Length - 2])
-                    {
-                        continue;
-                    }
-                    // Cut off the path if it's longer than the best path so far.
-                    if (best != -1 && dist + d > best)
-                    {
-                        continue;
-                    }
-                    // Okay, this is a valid path. Traverse it.
-                    int result = Search(path + c, dist + d, best, keys, maxPath, dupes);
-                    // It didn't work out, probably because of pruning.
-                    if (result == -1)
-                    {
-                        continue;
-                    }
-                    if (best == -1 || result < best)
-                    {
-                        Console.WriteLine("Best: {0} = {1}", path + c, result);
-                        best = result;
-                    }
+                    continue;
+                }
+                if (state.BestDistance == -1 || result < state.BestDistance)
+                {
+                    Console.WriteLine("Best: {0} = {1}", state.Path + c, result);
+                    state.BestDistance = result;
                 }
             }
 
-            return best;
+            return state.BestDistance;
         }
 
         public void Search()
         {
-            int best = -1;
-            int maxPath = 100;
-            for (int i = 0; i < 10; i++)
-            {
-                int result = Search("@", 0, best, ImmutableHashSet<char>.Empty, maxPath, i);
-                if (result != -1 && (best == -1 || result < best))
-                {
-                    best = result;
-                }
-            }
+            SearchState state = new SearchState();
+            state.Keys = ImmutableHashSet<char>.Empty;
+            state.MaxPath = 150;
+            state.BestDistance = -1;
+            state.Distance = 0;
+            state.Path = "";
+            int result = Search(state, '@', 0);
         }
     }
 }
