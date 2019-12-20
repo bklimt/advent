@@ -226,7 +226,7 @@ namespace code
                 return dist;
             }
 
-            // Console.WriteLine("keys={0}, dist={1}, path={2}, dupes={3}", keys.Count, dist, path, maxDupes);
+            Console.WriteLine("keys={0}, dist={1}, path={2}, dupes={3}", keys.Count, dist, path, maxDupes);
 
             char current = path.Last();
 
@@ -256,36 +256,39 @@ namespace code
 
             // TODO: Do any dupe paths after any non-dupe paths.
 
-            foreach (var entry in options)
+            for (int dupes = 0; dupes < maxDupes; dupes++)
             {
-                var c = entry.Key;
-                var d = entry.Value;
-                // Don't just move back and forth.
-                if (path.Length > 2 && c == path[path.Length - 3])
+                foreach (var entry in options)
                 {
-                    continue;
-                }
-                // Don't go right back unless you came here to pick up a key.
-                if (!gotKey && path.Length > 1 && c == path[path.Length - 2])
-                {
-                    continue;
-                }
-                // Cut off the path if it's longer than the best path so far.
-                if (best != -1 && dist + d > best)
-                {
-                    continue;
-                }
-                // Okay, this is a valid path. Traverse it.
-                int result = Search(path + c, dist + d, best, keys, maxPath, maxDupes);
-                // It didn't work out, probably because of pruning.
-                if (result == -1)
-                {
-                    continue;
-                }
-                if (best == -1 || result < best)
-                {
-                    Console.WriteLine("Best: {0} = {1}", path + c, result);
-                    best = result;
+                    var c = entry.Key;
+                    var d = entry.Value;
+                    // Don't just move back and forth.
+                    if (path.Length > 2 && c == path[path.Length - 3])
+                    {
+                        continue;
+                    }
+                    // Don't go right back unless you came here to pick up a key.
+                    if (!gotKey && path.Length > 1 && c == path[path.Length - 2])
+                    {
+                        continue;
+                    }
+                    // Cut off the path if it's longer than the best path so far.
+                    if (best != -1 && dist + d > best)
+                    {
+                        continue;
+                    }
+                    // Okay, this is a valid path. Traverse it.
+                    int result = Search(path + c, dist + d, best, keys, maxPath, dupes);
+                    // It didn't work out, probably because of pruning.
+                    if (result == -1)
+                    {
+                        continue;
+                    }
+                    if (best == -1 || result < best)
+                    {
+                        Console.WriteLine("Best: {0} = {1}", path + c, result);
+                        best = result;
+                    }
                 }
             }
 
@@ -295,7 +298,7 @@ namespace code
         public void Search()
         {
             int maxPath = 150;
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 10; i++)
             {
                 Search("@", 0, -1, ImmutableHashSet<char>.Empty, maxPath, i);
             }
