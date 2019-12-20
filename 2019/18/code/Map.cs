@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 
@@ -18,6 +19,7 @@ namespace code
 
         // Landmarks that are navigable.
         Dictionary<char, Tuple<int, int>> landmarks = new Dictionary<char, Tuple<int, int>>();
+        int KeyCount { get; set; }
 
         public static Map ParseMap(string path)
         {
@@ -147,6 +149,9 @@ namespace code
         {
             Tiles[Row, Col].landmarkDists['@'] = 0;
             while (UpdateLandmarks()) { }
+            KeyCount = (from entry in landmarks
+                        where Char.IsLower(entry.Key)
+                        select entry).Count();
         }
 
         public Dictionary<char, int> GetReachableLandmarks(char start)
@@ -208,78 +213,70 @@ namespace code
             }
         }
 
+        public int Search(string path, int dist, int best, ImmutableHashSet<char> keys)
+        {
+            if (keys.Count == KeyCount)
+            {
+                return dist;
+            }
+
+            char current = path.Last();
+
+            // Chack the current spot for whether we should update state.
+            bool gotKey = false;
+            if (Char.IsLower(current))
+            {
+                // We picked up a key maybe.
+                if (!keys.Contains(current))
+                {
+                    gotKey = true;
+                    keys = keys.Add(current);
+                }
+            }
+
+            // Get the set of every landmark reachable from this spot.
+            var reachable = GetReachableLandmarks(current);
+
+            // Remove any lock that we don't have a key for.
+            var options = from entry in reachable
+                          orderby entry.Value
+                          where !Char.IsUpper(entry.Key) || keys.Contains(entry.Key)
+                          select entry;
+
+            foreach (var entry in options)
+            {
+                var c = entry.Key;
+                var d = entry.Value;
+                // Don't just move back and forth.
+                if (path.Length > 2 && c == path[path.Length - 3])
+                {
+                    continue;
+                }
+                // Don't go right back unless you came here to pick up a key.
+                if (!gotKey && path.Length > 1 && c == path[path.Length - 2])
+                {
+                    continue;
+                }
+                // Cut off the path if it's longer than the best path so far.
+                if (best != -1 && dist + d > best)
+                {
+                    continue;
+                }
+                // Okay, this is a valid path. Traverse it.
+                int result = Search(path + c, dist + d, best, keys);
+                if (best == -1 || result < best)
+                {
+                    Console.WriteLine("Best: {} = {}", path + c, result);
+                    best = result;
+                }
+            }
+
+            return best;
+        }
+
         public void Search()
         {
-            // First, build an adjacency matrix with the set of shortest paths from
-            // each key to each key, along with what keys are needed to make that path.
-            var indexToLandmark = new List<char>(landmarks.Keys);
-            var landmarkToIndex = new Dictionary<char, int>();
-            var count = indexToLandmark.Count;
-            for (int i = 0; i < count; i++)
-            {
-                landmarkToIndex[indexToLandmark[i]] = i;
-            }
-            var matrix = new PathSet[count, count];
-            for (int i = 0; i < count; i++)
-            {
-                for (int j = 0; j < count; j++)
-                {
-                    matrix[i, j] = new PathSet();
-                }
-            }
-            // Start with everything directly reachable.
-            for (int i = 0; i < count; i++)
-            {
-                var reachable = GetReachableLandmarks(indexToLandmark[i]);
-                foreach (var t in reachable)
-                {
-                    var j = landmarkToIndex[t.Key];
-                    var path = new Path();
-                    path.Distance = t.Value;
-                    matrix[i, j].Paths.Add(path);
-                }
-            }
-            // Now build up all the derivative steps.
-            for (int m = 0; m < count; m++)
-            {
-                Console.WriteLine("Passes: {0} of {1}", m, count);
-                for (int i = 0; i < count; i++)
-                {
-                    Console.WriteLine("Row: {0} of {1} = {2}", i, count, indexToLandmark[i]);
-                    for (int j = 0; j < count; j++)
-                    {
-                        Console.WriteLine("Column: {0} of {1} = {2}", j, count, indexToLandmark[j]);
-                        if (i == j)
-                        {
-                            continue;
-                        }
-                        var op = matrix[i, j];
-                        for (int k = 0; k < count; k++)
-                        {
-                            // Console.WriteLine("Intermediate: {0} of {1}", k, count);
-                            if (i == k || j == k)
-                            {
-                                continue;
-                            }
-                            // TODO: If k is a lock, add it to keysNeeded.
-                            // Is there a shorter path from i to j through k?
-                            var ps1 = matrix[i, k];
-                            var ps2 = matrix[k, j];
-                            if (ps1.Paths.Count > 0 && ps2.Paths.Count > 0)
-                            {
-                                foreach (var p1 in ps1.Paths)
-                                {
-                                    foreach (var p2 in ps2.Paths)
-                                    {
-                                        op.Paths.Add(MergePaths(p1, p2));
-                                        op.ReducePaths();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            Search("@", 0, -1, ImmutableHashSet<char>.Empty);
         }
     }
 }
