@@ -167,28 +167,28 @@ namespace advent
                 {
                     if (row > 0)
                     {
-                        if (Tiles[row, col].UpdateLandmarks(Tiles[row - 1, col]))
+                        if (Tiles[row, col].UpdateLandmarks(Tiles[row - 1, col], Tile.Direction.Up))
                         {
                             updated = true;
                         }
                     }
                     if (col > 0)
                     {
-                        if (Tiles[row, col].UpdateLandmarks(Tiles[row, col - 1]))
+                        if (Tiles[row, col].UpdateLandmarks(Tiles[row, col - 1], Tile.Direction.Left))
                         {
                             updated = true;
                         }
                     }
                     if (row < Rows - 1)
                     {
-                        if (Tiles[row, col].UpdateLandmarks(Tiles[row + 1, col]))
+                        if (Tiles[row, col].UpdateLandmarks(Tiles[row + 1, col], Tile.Direction.Down))
                         {
                             updated = true;
                         }
                     }
                     if (col < Cols - 1)
                     {
-                        if (Tiles[row, col].UpdateLandmarks(Tiles[row, col + 1]))
+                        if (Tiles[row, col].UpdateLandmarks(Tiles[row, col + 1], Tile.Direction.Right))
                         {
                             updated = true;
                         }
@@ -200,28 +200,34 @@ namespace advent
 
         public void ComputeLandmarks()
         {
-            while (UpdateLandmarks()) { }
+            for (int pass = 0; UpdateLandmarks(); pass++)
+            {
+                Console.WriteLine("Pass {0}...", pass);
+            }
         }
 
         public void PrintPortals()
         {
+            int result = 0;
             foreach (var portalPosList in portalLocations)
             {
                 Console.WriteLine("{0}:", portalPosList.Key);
                 foreach (var portalPos in portalPosList.Value)
                 {
-                    Console.WriteLine("  ({0}, {1}):", portalPos.Item1, portalPos.Item2);
+                    Console.Write("  ({0}, {1}):", portalPos.Item1, portalPos.Item2);
                     var tile = Tiles[portalPos.Item1, portalPos.Item2];
                     foreach (var portalDist in tile.landmarkDists)
                     {
-                        Console.WriteLine("    {0}: {1}", portalDist.Key, portalDist.Value);
+                        Console.Write("{0}:{1} ", portalDist.Key, portalDist.Value);
+                        if (portalPosList.Key == "AA" && portalDist.Key == "ZZ")
+                        {
+                            result = portalDist.Value;
+                        }
                     }
+                    Console.WriteLine();
                 }
             }
-        }
-
-        public void Search()
-        {
+            Console.WriteLine("AA -> ZZ = {0}", result);
         }
     }
 }

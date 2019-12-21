@@ -7,9 +7,12 @@ namespace advent
     {
         public enum TileType { Unknown, Empty, Wall, Label, Portal }
 
+        public enum Direction { Unknown, Up, Down, Left, Right }
+
         public TileType Type { get; set; }
         public char Value { get; set; }
         public string PortalName { get; set; }
+        public Direction ZDirection { get; set; }
 
         // The distance through the maze to portal.
         public Dictionary<string, int> landmarkDists { get; private set; } =
@@ -17,6 +20,16 @@ namespace advent
 
         public char ToChar()
         {
+            if (ZDirection != Direction.Unknown)
+            {
+                switch (ZDirection)
+                {
+                    case Direction.Down: return 'v';
+                    case Direction.Up: return '^';
+                    case Direction.Left: return '<';
+                    case Direction.Right: return '>';
+                }
+            }
             if (Type == TileType.Label)
             {
                 return Char.ToLower(Value);
@@ -47,7 +60,7 @@ namespace advent
         }
 
         // Updates the internal bookkeeping of how far all the landmarks are.
-        public bool UpdateLandmarks(Tile neighbor)
+        public bool UpdateLandmarks(Tile neighbor, Direction dir)
         {
             // Impassable tiles don't need to know distances.
             if (Type == TileType.Wall || Type == TileType.Unknown || Type == TileType.Label)
@@ -59,18 +72,6 @@ namespace advent
             if (neighbor.Type == TileType.Unknown || neighbor.Type == TileType.Wall)
             {
                 // The neighbor is impassable, and not a landmark.
-                return false;
-            }
-
-            if (neighbor.Type == TileType.Portal)
-            {
-                // The neighbor is impassable, so don't inherit distances.
-                // But it is a landmark, so record it.
-                if (!landmarkDists.ContainsKey(neighbor.PortalName))
-                {
-                    landmarkDists[neighbor.PortalName] = 0;
-                    return true;
-                }
                 return false;
             }
 
@@ -89,17 +90,21 @@ namespace advent
             // Now inherit distances from the neighbor.
             foreach (var pair in neighbor.landmarkDists)
             {
-                if (!landmarkDists.ContainsKey(pair.Key))
+                int delta = 1;
+                // It's free to jump to portals.
+                if (neighbor.Type == TileType.Portal)
                 {
-                    landmarkDists[pair.Key] = pair.Value + 1;
-                    updated = true;
-                    continue;
+                    delta = 0;
                 }
-                if (pair.Value + 1 < landmarkDists[pair.Key])
+
+                if (!landmarkDists.ContainsKey(pair.Key) || (pair.Value + delta < landmarkDists[pair.Key]))
                 {
-                    landmarkDists[pair.Key] = pair.Value + 1;
+                    landmarkDists[pair.Key] = pair.Value + delta;
                     updated = true;
-                    continue;
+                    if (pair.Key == "ZZ")
+                    {
+                        ZDirection = dir;
+                    }
                 }
             }
             return updated;

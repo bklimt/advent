@@ -6,7 +6,7 @@ namespace advent
     {
         static void Main(string[] args)
         {
-            var map = Map.ParseMap("test.txt");
+            var map = Map.ParseMap("test2.txt");
             map.ComputePortals();
             Console.WriteLine(map.ToString());
 
@@ -16,6 +16,9 @@ namespace advent
             Console.WriteLine("Full portals:");
             map.ComputeLandmarks();
             map.PrintPortals();
+            Console.WriteLine(map.ToString());
         }
     }
 }
+
+// 1: 514
