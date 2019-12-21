@@ -153,11 +153,60 @@ func TestApplyEquation() {
 // Backward Inference Breadth-First Search
 //
 
+var elemScore map[string]int = make(map[string]int)
+
 type SearchState struct {
 	Inventory     *Inventory
 	EquationsUsed map[string]int
 	Depth         int
 	Path          []int
+}
+
+func (state *SearchState) Score() float64 {
+	num := 0
+	den := 0
+	for elem, _ := range state.Inventory.Items {
+		num = num + elemScore[elem]
+		den++
+	}
+	return float64(num) / float64(den)
+}
+
+type byScore []*SearchState
+
+func (s byScore) Len() int {
+	return len(s)
+}
+func (s byScore) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s byScore) Less(i, j int) bool {
+	return s[i].Score() < s[j].Score()
+}
+
+func FancySearch(equations []*Equation, equationLimit int) {
+	queue := []*SearchState{&SearchState{
+		Inventory: &Inventory{Items: map[string]int{"FUEL": 1}},
+		Path:      make([]int, 0, len(equations)*equationLimit),
+	}}
+	for len(queue) > 0 {
+		// Find all the new states.
+		state := queue[0]
+		queue = queue[1:]
+		fmt.Printf("%f: %s\n", state.Score(), state.Inventory.String())
+		for _, eq := range equations {
+			if newState := state.MaybeApplyEquation(eq, equationLimit); newState != nil {
+				amt, ok := newState.Inventory.OreOnlyAmount()
+				if ok {
+					fmt.Printf("\nORE: %d\n", amt)
+					return
+				}
+				queue = append(queue, newState)
+			}
+		}
+		// Sort all the states.
+		sort.Sort(byScore(queue))
+	}
 }
 
 func (state *SearchState) MaybeApplyEquation(eq *Equation, limit int) *SearchState {
@@ -272,7 +321,7 @@ func SearchDFS(equations []*Equation, equationLimit int, state *SearchState) boo
 //
 func SimplifyEquations(eqs []*Equation) {
 	byElement := make(map[string][]*Equation)
-	elemScore := make(map[string]int)
+	// elemScore = make(map[string]int)
 	eqScore := make(map[string]int)
 
 	// Initialize all the arrays.
@@ -381,6 +430,8 @@ func main() {
 	// SearchDFS(equations, 1, nil)
 
 	SimplifyEquations(equations)
+	fmt.Println()
+	FancySearch(equations, 1)
 }
 
 /*
@@ -389,8 +440,8 @@ Input | Elems | Passes | Ore     | Time (s)
 ------|-------|--------|---------|----------
     1 |     7 |      5 |      31 |      0.3
     2 |     8 |      6 |     165 |      0.8
-    3 |    10 |      8 |   13312 |      0.3
-		4 |    13 |     11 |  180697 |      1.2
-		5 |    18 |     16 | 2210736 |      6.7
+	3 |    10 |      8 |   13312 |      0.3
+	4 |    13 |     11 |  180697 |      1.2
+	5 |    18 |     16 | 2210736 |      6.7
     - |    64 |      ? |       ? |        ?
 */
