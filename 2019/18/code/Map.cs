@@ -6,6 +6,9 @@ using System.Linq;
 
 namespace code
 {
+    using SearchStateDictionary =
+        System.Collections.Generic.SortedDictionary<Tuple<double, string>, Map.SearchState>;
+
     public class Map
     {
         // The player's position.
@@ -213,126 +216,213 @@ namespace code
             }
         }
 
-        private struct SearchState
+        public struct SearchState
         {
+            // The hierarchical search state.
             public string Path;
             public int Distance;
-            public int BestDistance;
             public ImmutableHashSet<char> Keys;
-            public int MaxPath;
+
+            public double Score
+            {
+                get
+                {
+                    return Math.Sqrt(Distance) / (double)(Keys.Count() + 1);
+                }
+            }
 
             override public string ToString()
             {
-                return String.Format("keys={0}, dist={1}, path={2}, best={3}",
-                                     Keys.Count, Distance, Path, BestDistance);
+                return String.Format("keys={0}, dist={1}, path={2}",
+                                     Keys.Count, Distance, Path);
+            }
+        }
+
+        // A priority queue for the states to search.
+        private class SearchStateQueue
+        {
+            private int maxKeyCount = 0;
+            private readonly int MAX_ENTRIES = 2000000;
+
+            private SearchStateDictionary states = new SearchStateDictionary();
+
+            public void Add(SearchState state)
+            {
+                if (state.Keys.Count() > maxKeyCount)
+                {
+                    maxKeyCount = state.Keys.Count();
+                }
+
+                states.Add(Tuple.Create(state.Score, state.Path), state);
+
+                // Make sure the queue doesn't get too huge.
+                if (states.Count > MAX_ENTRIES)
+                {
+                    TrimQueue();
+                }
+            }
+
+            public SearchState Pop()
+            {
+                var entry = states.ElementAt(0);
+                states.Remove(entry.Key);
+                return entry.Value;
+            }
+
+            private void TrimQueue()
+            {
+                // The queue is just too large. Throw out the bottom half.
+                Console.WriteLine("Trimming queue...");
+
+                // Make buckets for each key count size.
+                SearchStateDictionary[] buckets = new SearchStateDictionary[maxKeyCount + 1];
+                for (int keyCount = 0; keyCount <= maxKeyCount; keyCount++)
+                {
+                    buckets[keyCount] = new SearchStateDictionary();
+                }
+
+                // Fill the buckets.
+                Console.WriteLine("  Filling buckets...");
+                while (states.Count > 0)
+                {
+                    var entry = states.First();
+                    states.Remove(entry.Key);
+                    buckets[entry.Value.Keys.Count].Add(entry.Key, entry.Value);
+                }
+
+                // Move from the buckets into a new queue until a limit is reached.
+                Console.WriteLine("  Emptying buckets...");
+                var newStates = new SearchStateDictionary();
+                while (newStates.Count < MAX_ENTRIES / 4)
+                {
+                    for (int i = maxKeyCount; i >= 0; i--)
+                    {
+                        if (buckets[i].Count == 0)
+                        {
+                            continue;
+                        }
+                        var entry = buckets[i].First();
+                        buckets[i].Remove(entry.Key);
+                        newStates.Add(entry.Key, entry.Value);
+                    }
+                }
+
+                states = newStates;
+                Console.WriteLine("  Queue trimmed.");
             }
         }
 
         // Score possible next steps.
-        private double Score(SearchState state, char option, int distance, bool gotKey)
+        private bool IsViablePath(SearchState state, char option)
         {
+            if (state.Path == "")
+            {
+                return true;
+            }
+
             char current = state.Path.Last();
 
+            // Don't try to go to where we already are.
+            if (option == current)
+            {
+                return false;
+            }
+            // Don't try to keep going if we're already finished.
+            if (state.Keys.Count >= 26)
+            {
+                return false;
+            }
+            // Don't recurse too deeply.
+            if (state.Path.Length > 300)
+            {
+                return false;
+            }
             // Don't just move back and forth.
             if (state.Path.Length > 2 && option == state.Path[state.Path.Length - 3])
             {
-                return -1;
-            }
-            // Don't go right back unless you came here to pick up a key.
-            if (!gotKey && state.Path.Length > 1 && option == state.Path[state.Path.Length - 2])
-            {
-                return -1;
-            }
-            // Cut off the path if it's longer than the best path so far.
-            if (state.BestDistance != -1 && state.Distance + distance > state.BestDistance)
-            {
-                return -1;
+                return false;
             }
             // Don't go to a lock you don't have the key to.
             if (char.IsUpper(option) && !state.Keys.Contains(Char.ToLower(option)))
             {
-                return -1;
+                return false;
             }
-            // Don't try to go to where we already are.
-            if (option == current)
+            // Don't go right back unless you came here to pick up a key.
+            bool gotKey = char.IsLower(current) && state.Path.Count(c => c == current) == 1;
+            if (!gotKey && state.Path.Length > 1 && option == state.Path[state.Path.Length - 2])
             {
-                return -1;
+                return false;
             }
-            // Demote the path by how many times it's repeated.
-            // return distance * (1 + state.Path.Count(c => c == option));
-            return Math.Pow(distance, state.Path.Count(c => c == option));
+
+            return true;
         }
 
-        private int Search(SearchState state, char current, int dist)
+        private void StepSearch(SearchState state, SearchStateQueue queue)
         {
-            state.Path += current;
-            state.Distance += dist;
-
-            // Don't recurse too deeply.
-            if (state.Path.Length > state.MaxPath)
-            {
-                return -1;
-            }
-
-            // Console.WriteLine("{0}", state);
-
-            // Chack the current spot for whether we should update state.
-            bool gotKey = false;
-            if (Char.IsLower(current))
-            {
-                // We picked up a key maybe.
-                if (!state.Keys.Contains(current))
-                {
-                    gotKey = true;
-                    state.Keys = state.Keys.Add(current);
-                }
-            }
-
-            if (state.Keys.Count == KeyCount)
-            {
-                return state.Distance;
-            }
-
             // Get the set of every landmark reachable from this spot.
-            var reachable = GetReachableLandmarks(current);
+            var reachable = GetReachableLandmarks(state.Path.Last());
 
             // Sort the options by score.
             var options = from entry in reachable
-                          let score = Score(state, entry.Key, entry.Value, gotKey)
-                          where score >= 0
-                          orderby score
+                          where IsViablePath(state, entry.Key)
                           select entry;
 
             foreach (var entry in options)
             {
-                var c = entry.Key;
-                var d = entry.Value;
-                // Okay, this is a valid path. Traverse it.
-                int result = Search(state, c, d);
-                // It didn't work out, probably because of pruning.
-                if (result == -1)
-                {
-                    continue;
-                }
-                if (state.BestDistance == -1 || result < state.BestDistance)
-                {
-                    Console.WriteLine("Best: {0} = {1}", state.Path + c, result);
-                    state.BestDistance = result;
-                }
-            }
+                var current = entry.Key;
+                var dist = entry.Value;
 
-            return state.BestDistance;
+                var newState = state;
+                newState.Path = state.Path + current;
+                newState.Distance = state.Distance + dist;
+
+                // Check the current spot for whether we should update state.
+                if (Char.IsLower(current))
+                {
+                    // We picked up a key maybe.
+                    if (!newState.Keys.Contains(current))
+                    {
+                        newState.Keys = newState.Keys.Add(current);
+                    }
+                }
+
+                // Okay, this is a valid path. Traverse it.
+                queue.Add(newState);
+            }
         }
 
         public void Search()
         {
-            SearchState state = new SearchState();
+            var state = new SearchState();
             state.Keys = ImmutableHashSet<char>.Empty;
-            state.MaxPath = 150;
-            state.BestDistance = -1;
             state.Distance = 0;
-            state.Path = "";
-            int result = Search(state, '@', 0);
+            state.Path = "@";
+
+            var queue = new SearchStateQueue();
+            queue.Add(state);
+
+            var bestState = state;
+
+            while (true)
+            {
+                state = queue.Pop();
+                if (state.Keys.Count > bestState.Keys.Count)
+                {
+                    bestState = state;
+                    Console.Write("best={0}\n", bestState);
+                }
+                else if (state.Keys.Count == bestState.Keys.Count)
+                {
+                    if (state.Distance < bestState.Distance)
+                    {
+                        bestState = state;
+                        Console.Write("best={0}\n", bestState);
+                    }
+                }
+
+                //Console.Write("best={0}, current={1}\n", bestState, state);
+                StepSearch(state, queue);
+            }
         }
     }
 }
