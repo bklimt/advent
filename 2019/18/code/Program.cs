@@ -14,3 +14,17 @@ namespace code
         }
     }
 }
+
+//
+// best=keys=19, dist=3494,
+// path=@ogoadiOGjGODzJqmqJzDouoDzJqmUbxbUmqJzD@ndMeMdiNpkpNi@ouBlslBuoDzJqmUbSy
+//
+// best=keys=19, dist=3288,
+// path=@aiogugodn@DzDOGjGODzJqmUbxbUmqJzDiNpkpNidMeMdouBlslBuoDzJqmUbSy
+//
+// best=keys=21, dist=3882,
+// path=@aiogugodn@DzDOGjGODzJqmUbxbUmqJzDiNpkpNidMeMdouBlslBuoDzJqmUbSySbUmqJzD@nKYhc
+//
+// best=keys=26, dist=4618,
+// path=@aiogugodn@DzDOGjGODzJqmUbxbUmqJzDiNpkpNidMeMdouBlslBuoDzJqmUbSySbUmqJzD@nKYhchYKn@DzJqmUbSyHCrRvRrVwtf
+//

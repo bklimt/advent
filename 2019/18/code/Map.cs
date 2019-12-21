@@ -227,7 +227,7 @@ namespace code
             {
                 get
                 {
-                    return Math.Sqrt(Distance) / (double)(Keys.Count() + 1);
+                    return Math.Log(Distance) / (double)(Keys.Count() + 1);
                 }
             }
 
