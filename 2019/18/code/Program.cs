@@ -6,7 +6,7 @@ namespace code
     {
         static void Main(string[] args)
         {
-            var map = Map.ParseMap("../input.txt");
+            var map = Map.ParseMap(args[0]);
             Console.WriteLine("Computing landmarks...");
             map.ComputeLandmarks();
             Console.WriteLine(map.ToString());

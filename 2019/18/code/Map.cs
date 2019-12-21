@@ -262,6 +262,11 @@ namespace code
                 }
             }
 
+            public int Count()
+            {
+                return states.Count();
+            }
+
             public SearchState Pop()
             {
                 var entry = states.ElementAt(0);
@@ -403,7 +408,7 @@ namespace code
 
             var bestState = state;
 
-            while (true)
+            while (queue.Count() != 0)
             {
                 state = queue.Pop();
                 if (state.Keys.Count > bestState.Keys.Count)
@@ -420,7 +425,7 @@ namespace code
                     }
                 }
 
-                //Console.Write("best={0}, current={1}\n", bestState, state);
+                Console.Write("best={0}, current={1}\n", bestState, state);
                 StepSearch(state, queue);
             }
         }
