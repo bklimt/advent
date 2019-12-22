@@ -30,7 +30,15 @@ func main() {
 		// NOT B J
 		// NOT C T
 		// OR T J
-		s := "NOT B J\nNOT C T\nOR T J\nRUN\n"
+		// AND D J
+		// s := "NOT B J\nNOT C T\nOR T J\nAND D J\nRUN\n"
+
+		// OR A T
+		// AND B T
+		// AND C T
+		// NOT T J
+		// AND D J
+		s := "OR A T\nAND B T\nAND C T\nNOT T J\nAND D J\nRUN\n"
 
 		for _, c := range s {
 			<-wantInput
@@ -92,9 +100,12 @@ func main() {
 // ####.##.## NO
 // ###.##.### YES
 // ##.##.#.## YES
-// #.#.###??# YES
+// #.#.###??? YES
 //
 // !B | !C
+// NOT B J
+// NOT C T
+// OR T J
 //
 // #####...#########
 //
@@ -104,4 +115,24 @@ func main() {
 // ###...### NO
 // ##...#### NO
 // #...##### YES
+//
+// NOT B J
+// NOT C T
+// OR T J
+// AND D J
+//
+// (!B | !C) ^ D
+//
+// #####.#.#########
+//
+// (!A | !B | !C) ^ D
+// !(A^B^C) ^ D
+//
+// OR A T
+// AND B T
+// AND C T
+// NOT T J
+// AND D J
+//
+// #####.#.#...#####
 //
