@@ -101,7 +101,7 @@ type Inventory struct {
 func (inv *Inventory) String() string {
 	keys := make([]string, 0, len(inv.Items))
 	for s, _ := range inv.Items {
-		//keys = append(keys, fmt.Sprintf("%s:%d", s, n))
+		// keys = append(keys, fmt.Sprintf("%s:%d", s, n))
 		keys = append(keys, s)
 	}
 	sort.Strings(keys)
@@ -163,13 +163,26 @@ type SearchState struct {
 }
 
 func (state *SearchState) Score() float64 {
-	num := 0
-	den := 0
+	// num := 0
+	// min := 50
+	// prod := 1.0
+	count := 0
+	invSum := 0.0
 	for elem, _ := range state.Inventory.Items {
-		num = num + elemScore[elem]
-		den++
+		// prod = prod * float64(elemScore[elem]+1)
+		count++
+		invSum = invSum + (1.0 / float64(elemScore[elem]+1))
+		/*
+			num = num + elemScore[elem]
+			if elemScore[elem] < min {
+				min = elemScore[elem]
+			}
+		*/
 	}
-	return float64(num) / float64(den)
+	//avg := float64(num) / float64(count)
+	//return float64(min) + (avg / 10.0) + (float64(len(state.Inventory.Items)) / 100.0)
+	//return prod
+	return float64(count) / invSum
 }
 
 type byScore []*SearchState
@@ -189,6 +202,9 @@ func FancySearch(equations []*Equation, equationLimit int) {
 		Inventory: &Inventory{Items: map[string]int{"FUEL": 1}},
 		Path:      make([]int, 0, len(equations)*equationLimit),
 	}}
+
+	stateSeen := make(map[string]bool)
+
 	for len(queue) > 0 {
 		// Find all the new states.
 		state := queue[0]
@@ -201,6 +217,14 @@ func FancySearch(equations []*Equation, equationLimit int) {
 					fmt.Printf("\nORE: %d\n", amt)
 					return
 				}
+
+				// Check if this state has already been visited.
+				invStr := newState.Inventory.String()
+				if stateSeen[invStr] {
+					// fmt.Printf("Skipping %s\n", invStr)
+					continue
+				}
+				stateSeen[invStr] = true
 				queue = append(queue, newState)
 			}
 		}
