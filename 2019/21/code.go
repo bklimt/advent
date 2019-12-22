@@ -38,7 +38,42 @@ func main() {
 		// AND C T
 		// NOT T J
 		// AND D J
-		s := "OR A T\nAND B T\nAND C T\nNOT T J\nAND D J\nRUN\n"
+		// s := "OR A T\nAND B T\nAND C T\nNOT T J\nAND D J\nRUN\n"
+
+		// OR D J
+		// AND H J
+		// s := "OR D J\nAND H J\nRUN\n"
+
+		// OR A T
+		// AND B T
+		// AND C T
+		// NOT T J
+		// AND H J
+		// AND D J
+		// s := "OR A T\nAND B T\nAND C T\nNOT T J\nAND H J\nAND D J\nRUN\n"
+
+		//   OR A T
+		//   AND B T
+		//   AND C T
+		//   NOT T J
+		//   NOT A T
+		//   AND A T
+		//   OR E T
+		//   OR H T
+		//   AND T J
+		//   AND D J
+		s := `OR A T
+AND B T
+AND C T
+NOT T J
+NOT A T
+AND A T
+OR E T
+OR H T
+AND T J
+AND D J
+RUN
+`
 
 		for _, c := range s {
 			<-wantInput
@@ -110,11 +145,11 @@ func main() {
 // #####...#########
 //
 //  ABCDEFGHI
-// #####...# ?
-// ####...## NO
-// ###...### NO
-// ##...#### NO
-// #...##### YES
+// #####...## ?
+// ####...### NO
+// ###...#### NO
+// ##...##### NO
+// #...#####? YES
 //
 // NOT B J
 // NOT C T
@@ -124,6 +159,14 @@ func main() {
 // (!B | !C) ^ D
 //
 // #####.#.#########
+//
+//  ABCDEFGHI
+// #####.#.##
+// ####.#.###
+// ###.#.####
+// ##.#.#####
+// #.#.######
+// #.########
 //
 // (!A | !B | !C) ^ D
 // !(A^B^C) ^ D
@@ -135,4 +178,58 @@ func main() {
 // AND D J
 //
 // #####.#.#...#####
+//
+//  ABCDEFGHI
+// #####.#.#.
+// ####.#.#..
+// ###.#.#...
+// ##.#.#...#
+// #.#.#...##
+// #.#...####
+//
+// D & H ? Is it rally that simple? No.
+//
+// X J   J   ??
+// #####.#.#.##.####
+//
+//  ABCDEFGHI
+// #####.#.#.
+// ####.#.#.#
+// ###.#.#.##
+// ##.#.#.##.
+// #.#.#.##.#
+// #.#.##.###
+// #.##.####?
+//
+// D & H & !(A ^ B ^ C)
+//
+// OR A T
+// AND B T
+// AND C T
+// NOT T J
+// AND H J
+// AND D J
+//
+// #####...###..####
+//
+// (E | H) & D & !(A ^ B ^ C)
+//
+// J = !(A^B^C)
+//   OR A T
+//   AND B T
+//   AND C T
+//   NOT T J
+// T = 0
+//   NOT A T
+//   AND A T
+// T |= E
+//   OR E T
+// T |= H
+//   OR H T
+// J &= T
+//   AND T J
+// J &= D
+//   AND D J
+//
+// 1139793906
 //
