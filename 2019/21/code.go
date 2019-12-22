@@ -25,7 +25,18 @@ func main() {
 		// AND D J
 		// NOT A T
 		// OR T J
-		s := "NOT C J\nAND D J\nNOT A T\nOR T J\nRUN\n"
+		// s := "NOT C J\nAND D J\nNOT A T\nOR T J\nRUN\n"
+
+		// OR D T
+		// AND C T
+		// NOT T T
+		// s := "OR D T\nAND C T\nNOT T T\nRUN\n"
+
+		// NOT D J
+		// NOT C T
+		// OR T J
+		s := "NOT D J\nNOT C T\nOR T J\nRUN\n"
+
 		for _, c := range s {
 			<-wantInput
 			in <- int(c)
@@ -63,7 +74,6 @@ func main() {
 			size.Y = cursor.Y
 		}
 	}
-	close(in)
 
 	fmt.Println()
 	fmt.Println()
@@ -78,11 +88,20 @@ func main() {
 // 19357180
 
 // 2:
+// OR D T
+// AND C T
+// NOT T T
+//
 //   1XXX2XXX3XXX4
 // #####.##.##.#.###
-
+//
+// ABCDEFGHI
 // #####.##. NO
 // ####.##.# NO
 // ###.##.## YES
 // ##.##.#.# YES
 // #.#.###?? YES
+//
+// E^F | !C
+// !D | !C
+// !(D&C)
