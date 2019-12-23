@@ -11,31 +11,39 @@ type Message struct {
 	Y    int
 }
 
+type ComputerState struct {
+	In    chan int
+	Queue []Message
+}
+
 func main() {
 	p := ReadProgram()
 
 	cs := make([]*Computer, 50, 50)
+	ss := make([]*ComputerState, 50, 50)
+
 	anyOut := make(chan Message)
 	anyWantInput := make(chan int)
-	allIn := make([]chan int, 50, 50)
 
-	qs := make([][]Message, 50, 50)
+	nat := Message{}
 
 	// Make 50 computers.
 	for i := 0; i < 50; i++ {
-		qs[i] = []Message{}
+		ss[i] = &ComputerState{
+			In:    make(chan int, 1000),
+			Queue: []Message{},
+		}
 
-		allIn[i] = make(chan int, 1000)
 		out := make(chan int, 1000)
 		wantInput := make(chan bool)
-		c := NewComputer(p, allIn[i], out, wantInput)
+		c := NewComputer(p, ss[i].In, out, wantInput)
 		go func() {
 			c.Run()
 		}()
 
 		// Tell it its IP address.
 		<-wantInput
-		allIn[i] <- i
+		ss[i].In <- i
 
 		// Put it in the array.
 		cs[i] = c
@@ -61,10 +69,6 @@ func main() {
 				}
 				x := <-out
 				y := <-out
-				if addr >= 50 {
-					fmt.Printf("Invalid address: %d for message{X=%d, Y=%d}\n", addr, x, y)
-					os.Exit(0)
-				}
 				anyOut <- Message{addr, x, y}
 			}
 		}()
@@ -72,21 +76,34 @@ func main() {
 
 	for {
 		select {
-		case msg := <-anyOut:
-			qs[msg.Addr] = append(qs[msg.Addr], msg)
+		case msg, ok := <-anyOut:
+			if !ok {
+				fmt.Printf("anyOut is closed\n")
+				continue
+			}
+			if msg.Addr == 255 {
+				nat.X = msg.X
+				nat.Y = msg.Y
+			} else if msg.Addr >= 50 {
+				fmt.Printf("Invalid address: %d for message{X=%d, Y=%d}\n", msg.Addr, msg.X, msg.Y)
+				os.Exit(0)
+			} else {
+				ss[msg.Addr].Queue = append(ss[msg.Addr].Queue, msg)
+			}
+
 		case want, ok := <-anyWantInput:
 			if !ok {
 				fmt.Printf("anyWantInput is closed\n")
 				continue
 			}
 			fmt.Printf("%d wants input\n", want)
-			if len(qs[want]) == 0 {
-				allIn[want] <- -1
+			if len(ss[want].Queue) == 0 {
+				ss[want].In <- -1
 			} else {
-				msg := qs[want][0]
-				qs[want] = qs[want][1:]
-				allIn[want] <- msg.X
-				allIn[want] <- msg.Y
+				msg := ss[want].Queue[0]
+				ss[want].Queue = ss[want].Queue[1:]
+				ss[want].In <- msg.X
+				ss[want].In <- msg.Y
 			}
 		}
 	}
