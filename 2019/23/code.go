@@ -6,14 +6,16 @@ import (
 )
 
 type Message struct {
+	From int
 	Addr int
 	X    int
 	Y    int
 }
 
 type ComputerState struct {
-	In    chan int
-	Queue []Message
+	In                chan int
+	Queue             []Message
+	ConsecutiveInputs int
 }
 
 func main() {
@@ -26,12 +28,14 @@ func main() {
 	anyWantInput := make(chan int)
 
 	nat := Message{}
+	prevY := 0
 
 	// Make 50 computers.
 	for i := 0; i < 50; i++ {
 		ss[i] = &ComputerState{
-			In:    make(chan int, 1000),
-			Queue: []Message{},
+			In:                make(chan int, 1000),
+			Queue:             []Message{},
+			ConsecutiveInputs: 0,
 		}
 
 		out := make(chan int, 1000)
@@ -69,7 +73,7 @@ func main() {
 				}
 				x := <-out
 				y := <-out
-				anyOut <- Message{addr, x, y}
+				anyOut <- Message{j, addr, x, y}
 			}
 		}()
 	}
@@ -81,6 +85,7 @@ func main() {
 				fmt.Printf("anyOut is closed\n")
 				continue
 			}
+			ss[msg.From].ConsecutiveInputs = 0
 			if msg.Addr == 255 {
 				nat.X = msg.X
 				nat.Y = msg.Y
@@ -96,7 +101,8 @@ func main() {
 				fmt.Printf("anyWantInput is closed\n")
 				continue
 			}
-			fmt.Printf("%d wants input\n", want)
+			// fmt.Printf("%d wants input\n", want)
+			ss[want].ConsecutiveInputs++
 			if len(ss[want].Queue) == 0 {
 				ss[want].In <- -1
 			} else {
@@ -106,7 +112,28 @@ func main() {
 				ss[want].In <- msg.Y
 			}
 		}
+
+		// Check for idle state.
+		idle := true
+		for i := 0; i < 50; i++ {
+			if ss[i].ConsecutiveInputs < 50 {
+				idle = false
+			}
+		}
+		if idle {
+			fmt.Println("idle")
+			for i := 0; i < 50; i++ {
+				ss[i].ConsecutiveInputs = 0
+			}
+			ss[0].Queue = []Message{nat}
+			if nat.Y == prevY {
+				fmt.Printf("Result: %d\n", nat.Y)
+				os.Exit(0)
+			}
+			prevY = nat.Y
+		}
 	}
 }
 
 // 1: 20160
+// 2: 13241 is too high.
