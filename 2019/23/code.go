@@ -102,14 +102,15 @@ func main() {
 				continue
 			}
 			// fmt.Printf("%d wants input\n", want)
-			ss[want].ConsecutiveInputs++
 			if len(ss[want].Queue) == 0 {
 				ss[want].In <- -1
+				ss[want].ConsecutiveInputs++
 			} else {
 				msg := ss[want].Queue[0]
 				ss[want].Queue = ss[want].Queue[1:]
 				ss[want].In <- msg.X
 				ss[want].In <- msg.Y
+				ss[want].ConsecutiveInputs = 0
 			}
 		}
 
@@ -137,3 +138,5 @@ func main() {
 
 // 1: 20160
 // 2: 13241 is too high.
+//    13161 is too low.
+//    13217 is not right.
