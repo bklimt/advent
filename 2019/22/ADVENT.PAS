@@ -16,11 +16,9 @@ begin
 end;
 
 procedure reverse;
-var i : integer;
-var temp : integer;
+var i, temp : integer;
 begin
-  for i := 0 to ((size-1) div 2) do
-  begin
+  for i:=0 to ((size-1) div 2) do begin
     temp := cards[i];
     cards[i] := cards[(size-1)-i];
     cards[(size-1)-i] := temp;
@@ -44,8 +42,7 @@ procedure increment(n: integer);
 var src, dst : integer;
 begin
   dst := 0;
-  for src := 0 to (size-1) do
-  begin
+  for src := 0 to (size-1) do begin
     buffer[dst] := cards[src];
     dst := (dst + n) mod size;
   end;
@@ -107,9 +104,5 @@ begin
 end;
 
 begin
-  writeln('start');
-  init;
-  process;
-  search;
-  readln;
+  init; process; search; readln;
 end.
