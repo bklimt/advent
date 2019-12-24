@@ -7,7 +7,7 @@ import (
 
 type Message struct {
 	From int
-	Addr int
+	To   int
 	X    int
 	Y    int
 }
@@ -27,7 +27,7 @@ func main() {
 	anyOut := make(chan Message)
 	anyWantInput := make(chan int)
 
-	nat := Message{}
+	nat := Message{From: 255, To: 0}
 	prevY := 0
 
 	// Make 50 computers.
@@ -85,15 +85,16 @@ func main() {
 				fmt.Printf("anyOut is closed\n")
 				continue
 			}
+			fmt.Printf("%3d > %3d [%d, %d]\n", msg.From, msg.To, msg.X, msg.Y)
 			ss[msg.From].ConsecutiveInputs = 0
-			if msg.Addr == 255 {
+			if msg.To == 255 {
 				nat.X = msg.X
 				nat.Y = msg.Y
-			} else if msg.Addr >= 50 {
-				fmt.Printf("Invalid address: %d for message{X=%d, Y=%d}\n", msg.Addr, msg.X, msg.Y)
+			} else if msg.To >= 50 {
+				fmt.Printf("Invalid address: %d for message{X=%d, Y=%d}\n", msg.To, msg.X, msg.Y)
 				os.Exit(0)
 			} else {
-				ss[msg.Addr].Queue = append(ss[msg.Addr].Queue, msg)
+				ss[msg.To].Queue = append(ss[msg.To].Queue, msg)
 			}
 
 		case want, ok := <-anyWantInput:
@@ -101,6 +102,7 @@ func main() {
 				fmt.Printf("anyWantInput is closed\n")
 				continue
 			}
+			// fmt.Printf("%3d <\n", want)
 			// fmt.Printf("%d wants input\n", want)
 			if len(ss[want].Queue) == 0 {
 				ss[want].In <- -1
@@ -108,21 +110,27 @@ func main() {
 			} else {
 				msg := ss[want].Queue[0]
 				ss[want].Queue = ss[want].Queue[1:]
+				// TODO: What's broken here is we don't eat up the extra "wantInput" sends.
 				ss[want].In <- msg.X
 				ss[want].In <- msg.Y
 				ss[want].ConsecutiveInputs = 0
+				fmt.Printf("%3d < %3d [%d, %d]\n", msg.To, msg.From, msg.X, msg.Y)
 			}
 		}
 
 		// Check for idle state.
 		idle := true
 		for i := 0; i < 50; i++ {
-			if ss[i].ConsecutiveInputs < 50 {
+			if ss[i].ConsecutiveInputs < 100 {
 				idle = false
+				break
+			}
+			if len(ss[i].Queue) != 0 {
+				fmt.Println("WARNING: invalid input state.")
 			}
 		}
 		if idle {
-			fmt.Println("idle")
+			fmt.Printf("Idle: sending [%d, %d]\n", nat.X, nat.Y)
 			for i := 0; i < 50; i++ {
 				ss[i].ConsecutiveInputs = 0
 			}
