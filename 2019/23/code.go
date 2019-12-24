@@ -16,6 +16,7 @@ type ComputerState struct {
 	In                chan int
 	Queue             []Message
 	ConsecutiveInputs int
+	GonnaWantY        bool
 }
 
 func main() {
@@ -102,19 +103,23 @@ func main() {
 				fmt.Printf("anyWantInput is closed\n")
 				continue
 			}
-			// fmt.Printf("%3d <\n", want)
-			// fmt.Printf("%d wants input\n", want)
-			if len(ss[want].Queue) == 0 {
-				ss[want].In <- -1
-				ss[want].ConsecutiveInputs++
+			if ss[want].GonnaWantY {
+				ss[want].GonnaWantY = false
 			} else {
-				msg := ss[want].Queue[0]
-				ss[want].Queue = ss[want].Queue[1:]
-				// TODO: What's broken here is we don't eat up the extra "wantInput" sends.
-				ss[want].In <- msg.X
-				ss[want].In <- msg.Y
-				ss[want].ConsecutiveInputs = 0
-				fmt.Printf("%3d < %3d [%d, %d]\n", msg.To, msg.From, msg.X, msg.Y)
+				// fmt.Printf("%3d <\n", want)
+				// fmt.Printf("%d wants input\n", want)
+				if len(ss[want].Queue) == 0 {
+					ss[want].In <- -1
+					ss[want].ConsecutiveInputs++
+				} else {
+					msg := ss[want].Queue[0]
+					ss[want].Queue = ss[want].Queue[1:]
+					ss[want].GonnaWantY = true
+					ss[want].In <- msg.X
+					ss[want].In <- msg.Y
+					ss[want].ConsecutiveInputs = 0
+					fmt.Printf("%3d < %3d [%d, %d]\n", msg.To, msg.From, msg.X, msg.Y)
+				}
 			}
 		}
 
@@ -145,6 +150,4 @@ func main() {
 }
 
 // 1: 20160
-// 2: 13241 is too high.
-//    13161 is too low.
-//    13217 is not right.
+// 2: 13164
