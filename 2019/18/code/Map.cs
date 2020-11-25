@@ -236,6 +236,11 @@ namespace code
                 return String.Format("keys={0}, dist={1}, path={2}",
                                      Keys.Count, Distance, Path);
             }
+
+            public string DedupeKey()
+            {
+                // What to do???
+            }
         }
 
         // A priority queue for the states to search.

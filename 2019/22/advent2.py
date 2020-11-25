@@ -1,9 +1,9 @@
 
-size = 10007
-ans = 2019
+# size = 10007
+# ans = 2019
 
-# size = 119315717514047
-# ans = 2020
+size = 119315717514047
+ans = 2020
 
 def reverse():
   global ans
@@ -23,10 +23,10 @@ def inc(n):
   ans = ans % size
 
 def process():
-  with open('input.txt') as f:
+  with open('INPUT.TXT') as f:
     for line in f:
       line = line.strip()
-      print(line)
+      # print(line)
       if line == 'deal into new stack':
         reverse()
       elif line[:4] == 'cut ':
@@ -36,5 +36,6 @@ def process():
       else:
         raise 'wut'
 
-process()
-print(ans)
+for i in range(20):
+  process()
+  print(ans)
