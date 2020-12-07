@@ -69,7 +69,7 @@ def count_closure(rules, bag):
   return count
 
 def problem2(rules):
-  count = count_closure(rules, 'shiny gold')
+  count = count_closure(rules, 'shiny gold') - 1
   print count
 
 def main():
