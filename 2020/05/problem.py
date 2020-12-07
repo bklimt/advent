@@ -6,7 +6,7 @@ def mapchar(c):
     return '0'
   if c == 'B' or c == 'R':
     return '1'
-  raise 'oh no!'
+  raise Exception('oh no!')
 
 def parse1(line):
   s = ''.join([mapchar(c) for c in line])
