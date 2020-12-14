@@ -1,27 +1,35 @@
 
-lines = file('sample.txt').read().strip().split('\n')
-mask = lines[0][7:]
-memory = {}
+lines = file('input.txt').read().strip().split('\n')
 
 def mask_char(c1, c2, n1, n2):
   if c1 == c2:
     return n1
   return n2
 
-mask0 = eval('0b' + ''.join([mask_char(x, '0', '0', '1') for x in mask]))
-mask1 = eval('0b' + ''.join([mask_char(x, '1', '1', '0') for x in mask]))
+class State:
+  def __init__(self):
+    self.mask = 0
+    self.memory = {}
+    self.mask0 = 0
+    self.mask1 = 0
 
-def apply_mask(n):
-  n = n & mask0
-  n = n | mask1
-  return n
+  def parse_mask(self, s):
+    self.mask = s[7:]
+    self.mask0 = eval('0b' + ''.join([mask_char(x, '0', '0', '1') for x in self.mask]))
+    self.mask1 = eval('0b' + ''.join([mask_char(x, '1', '1', '0') for x in self.mask]))
+
+  def apply_mask(self, n):
+    n = n & self.mask0
+    n = n | self.mask1
+    return n
+
+  def run(self, cmd):
+    self.memory[cmd.addr] = self.apply_mask(cmd.val)
 
 class Command:
   def __init__(self, addr, val):
     self.addr = addr
     self.val = val
-  def run(self):
-    memory[self.addr] = apply_mask(self.val)
   def __str__(self):
     return 'mem[' + str(self.addr) + '] = ' + str(self.val)
   def __repr__(self):
@@ -33,21 +41,20 @@ def parse_command(s):
   val = int(rhs)
   return Command(addr, val)
 
-cmds = [parse_command(line) for line in lines[1:]]
+def main():
+  state = State()
+  for line in lines:
+    if line[1] == 'a':
+      state.parse_mask(line)
+    else:
+      cmd = parse_command(line)
+      state.run(cmd)
 
-print mask
-print mask0
-print mask1
-print cmds
-  
-for cmd in cmds:
-  print memory
-  print cmd
-  cmd.run()
+  print state.memory
 
-print memory
+  sum = 0
+  for k in state.memory:
+    sum = sum + state.memory[k]
+  print sum
 
-sum = 0
-for k in memory:
-  sum = sum + memory[k]
-print sum
+main()
