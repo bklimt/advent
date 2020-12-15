@@ -2,11 +2,9 @@
 input = [0,12,6,13,20,1,17]
 
 def game(n):
-  seen = {
-  }
-
+  seen = {}
   i = 0
-
+  
   curr = 0
   for x in input:
     prev = curr
