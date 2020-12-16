@@ -14,6 +14,10 @@ type Range struct {
 	high int
 }
 
+func (r Range) Contains(n int) bool {
+	return n >= r.low && n <= r.high
+}
+
 func (r Range) String() string {
 	return fmt.Sprintf("[%d, %d]", r.low, r.high)
 }
@@ -41,6 +45,10 @@ type Field struct {
 	Name   string
 	Range1 Range
 	Range2 Range
+}
+
+func (f Field) Contains(n int) bool {
+	return f.Range1.Contains(n) || f.Range2.Contains(n)
 }
 
 func (f Field) String() string {
@@ -100,6 +108,24 @@ type Input struct {
 	Fields []Field
 	Yours  Ticket
 	Nearby []Ticket
+}
+
+func (input Input) Part1() int {
+	ans := 0
+	for _, t := range input.Nearby {
+		for _, n := range t {
+			found := false
+			for _, f := range input.Fields {
+				if f.Contains(n) {
+					found = true
+				}
+			}
+			if !found {
+				ans = ans + n
+			}
+		}
+	}
+	return ans
 }
 
 func ReadInput(path string) (Input, error) {
@@ -186,5 +212,6 @@ func main() {
 		fmt.Printf("%v\n", err)
 		return
 	}
-	fmt.Printf("%s\n", input)
+
+	fmt.Printf("%d\n", input.Part1())
 }
