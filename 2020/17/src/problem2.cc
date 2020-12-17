@@ -18,6 +18,44 @@ class Space {
            minw_(0), maxw_(0),
            count_(0) {}
 
+  Space(const Space& other) = delete;
+
+  Space(Space&& other): minx_(0), maxx_(0),
+                        miny_(0), maxy_(0),
+                        minz_(0), maxz_(0),
+                        minw_(0), maxw_(0),
+                        count_(0) {
+    count_ = other.count_;
+    minx_ = other.minx_;
+    miny_ = other.miny_;
+    minz_ = other.minz_;
+    minw_ = other.minw_;
+    maxx_ = other.maxx_;
+    maxy_ = other.maxy_;
+    maxz_ = other.maxz_;
+    maxw_ = other.maxw_;
+    data_ = std::move(other.data_);
+  }
+
+  Space& operator=(const Space& other) = delete;
+
+  Space& operator=(Space&& other) {
+    if (this == &other) {
+      return *this;
+    }
+    count_ = other.count_;
+    minx_ = other.minx_;
+    miny_ = other.miny_;
+    minz_ = other.minz_;
+    minw_ = other.minw_;
+    maxx_ = other.maxx_;
+    maxy_ = other.maxy_;
+    maxz_ = other.maxz_;
+    maxw_ = other.maxw_;
+    data_ = std::move(other.data_);
+    return *this;
+  }
+
   void Set(int x, int y, int z, int w) {
     if (x < minx_) minx_ = x;
     if (y < miny_) miny_ = y;
@@ -56,7 +94,8 @@ class Space {
   std::map<std::tuple<int, int, int, int>, bool> data_;
 };
 
-void ReadLayer(const char *path, Space *space) {
+Space ReadLayer(const char *path) {
+  Space space;
   FILE *f = fopen(path, "r");
   if (f == nullptr) {
     printf("unable to open file");
@@ -71,11 +110,12 @@ void ReadLayer(const char *path, Space *space) {
       y++;
     } else {
       if (c == '#') {
-        space->Set(x, y, 0, 0);
+        space.Set(x, y, 0, 0);
       }
       x++;
     }
   }
+  return space;
 }
 
 void PrintSpace(const Space &space) {
@@ -115,8 +155,8 @@ int CountNeighbors(const Space& input, int x, int y, int z, int w) {
   return count;
 }
 
-std::unique_ptr<Space> Process(const Space& input) {
-  auto output = std::make_unique<Space>();
+Space Process(const Space& input) {
+  Space output;
   for (int w = input.minw() - 1; w <= input.maxw() + 1; w++) {
     for (int z = input.minz() - 1; z <= input.maxz() + 1; z++) {
       for (int y = input.miny() - 1; y <= input.maxy() + 1; y++) {
@@ -125,11 +165,11 @@ std::unique_ptr<Space> Process(const Space& input) {
           int n = CountNeighbors(input, x, y, z, w);
           if (old) {
             if (n == 2 || n == 3) {
-              output->Set(x, y, z, w);
+              output.Set(x, y, z, w);
             }
           } else {
             if (n == 3) {
-              output->Set(x, y, z, w);
+              output.Set(x, y, z, w);
             }
           }
         }
@@ -140,15 +180,14 @@ std::unique_ptr<Space> Process(const Space& input) {
 }
 
 int main(int argc, char **argv) {
-  std::unique_ptr<Space> space = std::make_unique<Space>();
-  ReadLayer("input.txt", space.get());
-  // PrintSpace(*space);
+  Space space = ReadLayer("input.txt");
+  // PrintSpace(space);
 
   for (int i = 0; i < 6; i++) {
-    space = std::move(Process(*space));
+    space = Process(space);
     printf("After %d steps...\n", i + 1);
-    // PrintSpace(*space);
-    printf("Count: %d\n\n", space->count());
+    // PrintSpace(space);
+    printf("Count: %d\n\n", space.count());
   }
 
   return 0;
