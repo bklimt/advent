@@ -339,6 +339,26 @@ func main() {
 // 8 and 11 both generate chunks of sizes that are multiples of 8
 // So, yeah...
 //
+// A{1, 11-2N} A{N} B{N} for N=[0, 5]
+//
+// A
+// A A
+// A A A
+// A A A A
+// A A A A A
+// A A A A A A
+// A A A A A A A
+// A A A A A A A A
+// A A A A A A A A A
+// A A A A A A A A A A
+// A A A A A A A A A A A
+// A A B
+// A A A B B
+// A A A A B B B
+// A A A A A B B B B
+// A A A A A A B B B B B
+// (plus any number of As)
+//
 // 42
 //   20 86
 //     20
