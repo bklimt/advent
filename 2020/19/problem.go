@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -36,6 +37,10 @@ func (r *LiteralRule) Match(s string, rules *RuleSet, indent int) (bool, int) {
 	return false, 0
 }
 
+func (r *LiteralRule) Generate(rules *RuleSet) []string {
+	return []string{fmt.Sprintf("%c", r.Character)}
+}
+
 func (r *LiteralRule) String() string {
 	return fmt.Sprintf("%q", r.Character)
 }
@@ -63,6 +68,22 @@ func (r *SequenceRule) Match(s string, rules *RuleSet, indent int) (bool, int) {
 		fmt.Printf("%sReturning true\n", strings.Repeat("  ", indent+1))
 	}
 	return true, eaten
+}
+
+func (r *SequenceRule) Generate(rules *RuleSet) []string {
+	current := []string{""}
+	for _, i := range r.SubRules {
+		rule := rules.Rules[i]
+		subs := rule.Generate(rules)
+		next := []string{}
+		for _, s1 := range current {
+			for _, s2 := range subs {
+				next = append(next, fmt.Sprintf("%s%s", s1, s2))
+			}
+		}
+		current = next
+	}
+	return current
 }
 
 func (r *SequenceRule) String() string {
@@ -96,6 +117,15 @@ func (r *DisjunctiveRule) Match(s string, rules *RuleSet, indent int) (bool, int
 	return false, 0
 }
 
+func (r *DisjunctiveRule) Generate(rules *RuleSet) []string {
+	result := []string{}
+	for _, rule := range r.SubRules {
+		added := rule.Generate(rules)
+		result = append(result, added...)
+	}
+	return result
+}
+
 func (r *DisjunctiveRule) String() string {
 	ss := make([]string, len(r.SubRules))
 	for i, n := range r.SubRules {
@@ -104,8 +134,58 @@ func (r *DisjunctiveRule) String() string {
 	return strings.Join(ss, " | ")
 }
 
+type Rule8 struct {
+	Rule42 []string
+}
+
+func (r *Rule8) String() string {
+	return "[Rule 8]"
+}
+
+// Eh, there's mulitple ways for it to match now.
+func (r *Rule8) Match(s string, rules *RuleSet, indent int) (bool, int) {
+	if debug {
+		fmt.Printf("%sTrying %s with %s\n", strings.Repeat("  ", indent), r, s)
+	}
+	if debug {
+		fmt.Printf("%sReturning false\n", strings.Repeat("  ", indent+1))
+	}
+	return false, 0
+}
+
+// Eh, this will be 10 * len(rule42)...
+func (r *Rule8) Generate(rules *RuleSet) []string {
+	return []string{"**** Rule 8 *****"}
+}
+
+type Rule11 struct {
+	Rule31 []string
+	Rule42 []string
+}
+
+func (r *Rule11) String() string {
+	return "[Rule 8]"
+}
+
+// Eh, there's mulitple ways for it to match now.
+func (r *Rule11) Match(s string, rules *RuleSet, indent int) (bool, int) {
+	if debug {
+		fmt.Printf("%sTrying %s with %s\n", strings.Repeat("  ", indent), r, s)
+	}
+	if debug {
+		fmt.Printf("%sReturning false\n", strings.Repeat("  ", indent+1))
+	}
+	return false, 0
+}
+
+// Eh, this will be ... big ...
+func (r *Rule11) Generate(rules *RuleSet) []string {
+	return []string{"**** Rule 11 *****"}
+}
+
 type Rule interface {
 	Match(s string, rules *RuleSet, indent int) (bool, int)
+	Generate(rules *RuleSet) []string
 }
 
 type RuleSet struct {
@@ -221,6 +301,30 @@ func ProcessFile(path string) error {
 	// Part 1: 195
 	fmt.Printf("\nCount: %d", count)
 
+	fmt.Printf("\n\nRule 42 strings:\n")
+	rule42s := rules.Rules[42].Generate(rules)
+	sort.Strings(rule42s)
+	for _, s := range rule42s {
+		fmt.Printf("%s\n", s)
+	}
+
+	fmt.Printf("\n\nRule 31 strings:\n")
+	rule31s := rules.Rules[31].Generate(rules)
+	sort.Strings(rule31s)
+	for _, s := range rule31s {
+		fmt.Printf("%s\n", s)
+	}
+
+	rules.Rules[8] = &Rule8{Rule42: rule42s}
+	rules.Rules[11] = &Rule11{Rule31: rule31s, Rule42: rule42s}
+
+	fmt.Printf("\n\nRule 0 strings:\n")
+	rule0s := rules.Rules[0].Generate(rules)
+	sort.Strings(rule0s)
+	for _, s := range rule0s {
+		fmt.Printf("%s\n", s)
+	}
+
 	return nil
 }
 
@@ -229,3 +333,66 @@ func main() {
 		fmt.Printf("%v\n", err)
 	}
 }
+
+//
+// 0 -> 8 11
+// 8 and 11 both generate chunks of sizes that are multiples of 8
+// So, yeah...
+//
+// 42
+//   20 86
+//     20
+//       a
+//     86
+//       104 20 (bbaaab|bbaabb|bbabaa|bbabab)
+//         104
+//           91 70 (bbaaab|bbaabb|bbabaa|bbabab)
+//             91
+//               b
+//             70
+//               91 24 (baaab|baabb|babaa|babab)
+//                 91
+//                   b
+//                 24
+//                   20 83 (aaab|aabb|abaa|abab)
+//                     20
+//                       a
+//                     83 (aab|abb|baa|bab)
+//                       1 20 (baa)
+//                         1 (ba)
+//                           91 20 (ba)
+//                             91
+//                               b
+//                             20
+//                               a
+//                         20
+//                           a
+//                       60 91 (aab|abb|bab)
+//                         60 (aa|ab|ba)
+//                           91 20 (ba)
+//                           20 106 (aa|ab)
+//                             20
+//                               a
+//                             106 (b|a)
+//                               91
+//                                 b
+//                               20
+//                                 a
+//                         91
+//                           b
+//                   91 64
+//                     91
+//                     64
+//               20 34
+//           20 108
+//         20
+//           a
+//       9 91
+//   91 56
+//     91
+//       b
+//     56
+//       91 121 | 20 61
+// 31
+//   91 69
+//   20 47
