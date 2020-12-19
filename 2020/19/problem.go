@@ -218,6 +218,7 @@ func ProcessFile(path string) error {
 			count = count + 1
 		}
 	}
+	// Part 1: 195
 	fmt.Printf("\nCount: %d", count)
 
 	return nil
