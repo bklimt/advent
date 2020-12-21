@@ -14,6 +14,35 @@ class Tile {
         data_.push_back(data[i][j]);
       }
     }
+
+    top_ = bottom_ = right_ = left_ = 0;
+    top_flip_ = bottom_flip_ = right_flip_ = left_flip_ = 0;
+
+    for (int i = 0; i < 10; i++) {
+      top_ <<= 1;
+      top_ |= data_[i];
+
+      bottom_ <<= 1;
+      bottom_ |= data_[90 + i];
+
+      left_ <<= 1;
+      left_ |= data_[10 * i];
+
+      right_ <<= 1;
+      right_ |= data_[10 * i + 9];
+
+      top_flip_ <<= 1;
+      top_flip_ |= data_[9 - i];
+
+      bottom_flip_ <<= 1;
+      bottom_flip_ |= data_[99 - i];
+
+      left_flip_ <<= 1;
+      left_flip_ |= data_[10 * (9 - i)];
+
+      right_flip_ <<= 1;
+      right_flip_ |= data_[10 * (9 - i) + 9];
+    }
   }
 
   Tile(Tile &&other) {
@@ -28,6 +57,11 @@ class Tile {
     other.id_ = 0;
     return *this;
   }
+
+  int top() { return top_; }
+  int bottom() { return bottom_; }
+  int left() { return left_; }
+  int right() { return right_; }
 
   void PrintDebugString() {
     printf("Tile %4d:\n", id_);
@@ -52,6 +86,9 @@ class Tile {
 
   int id_;
   std::vector<int> data_;
+
+  int top_, bottom_, left_, right_;
+  int top_flip_, bottom_flip_, left_flip_, right_flip_;
 };
 
 void ExpectChar(int expected, int got) {
