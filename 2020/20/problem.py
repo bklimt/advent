@@ -102,35 +102,76 @@ def print_board(board):
       print '{0:>3} '.format(len(board[i][j])),
     print
 
-def filter(board, tile_map):
-  # This doesn't work, because every tile has some orientation where it fits with something else.
+def filter_impossible(board, tile_map, solved):
   changed = False
   for r in range(len(board)):
     for c in range(len(board)):
+      # This one is already solved.
+      if len(board[r][c]) == 1:
+        continue
+
       new_entry = []
       for t1 in board[r][c]:
         # Is this tile possible?
-        poss_v = False
+
+        # Is this tile already solved?
+        if t1 in solved:
+          changed = True
+          continue
+
+        # Can this tile match one of its neighbors?
+        poss_down = False
         if r + 1 < len(board):
           for t2 in board[r+1][c]:
             if match_v(tile_map[t1], tile_map[t2]):
-              poss_v = True
+              poss_down = True
               break
         else:
-          poss_v = True
-        poss_h = False
+          poss_down = True
+
+        poss_up = False
+        if r > 0:
+          for t2 in board[r-1][c]:
+            if match_v(tile_map[t2], tile_map[t1]):
+              poss_up = True
+              break
+        else:
+          poss_up = True
+
+        poss_right = False
         if c + 1 < len(board):
           for t2 in board[r][c+1]:
             if match_h(tile_map[t1], tile_map[t2]):
-              poss_h = True
+              poss_right = True
               break
         else:
-          poss_h = True
-        if poss_h and poss_v:
+          poss_right = True
+
+        poss_left = False
+        if c > 0:
+          for t2 in board[r][c-1]:
+            if match_h(tile_map[t2], tile_map[t1]):
+              poss_left = True
+              break
+        else:
+          poss_left = True
+
+        if poss_up and poss_down and poss_left and poss_right:
           new_entry.append(t1)
         else:
           changed = True
+
       board[r][c] = new_entry
+      if len(new_entry) == 1:
+        solved[new_entry[0]] = True
+
+  # The whole thing could be flipped diagonally, so pick one.
+  if len(board[0][1]) == 2:
+    picked = board[0][1][0]
+    board[0][1] = [picked]
+    solved[picked] = True
+    changed = True
+
   return changed
 
 def find_corners(tiles):
@@ -140,7 +181,29 @@ def find_corners(tiles):
       if len(edge_map[option.left]) == 1:
         if len(edge_map[option.top]) == 1:
           corners.append(tile.id)
+          break
   return corners
+
+def matrix_set(m, r, c, d):
+  while len(m) < r:
+    m.append([])
+  while len(m[r]) < c:
+    m[r].append(' ')
+  m[r][c] = d
+
+def create_image(board, tile_map):
+  dim = len(board) * 8
+  image = []
+  for r in range(len(board)):
+    for c in range(len(board)):
+      if len(board[r][c]) != 1:
+        raise Exception("oh no!")
+      tile = tile_map[board[r][c][0]]
+      # TODO(klimt): Oh no! I don't know the orientation!
+      option = tile.options[0]
+      for rr in range(0, 7):
+        for cc in range(0, 7):
+          matrix_set(image, r*8+rr, c*8+cc, option.data[rr+1][cc+1])
 
 def main():
   tile_strs = file('input.txt').read().strip().split('\n\n')
@@ -166,6 +229,27 @@ def main():
 
   print_board(board)
   print
-  print find_corners(tiles)
+
+  corners = find_corners(tiles)
+  print corners
+  if len(corners) != 4:
+    raise Exception("oh no!")
+
+  print 'Part 1:', corners[0] * corners[1] * corners[2] * corners[3]
+  print
+
+  # Fix one corner and make the others be corners.
+  board[0][0] = [corners[0]]
+  board[0][-1] = [corners[1], corners[2], corners[3]]
+  board[-1][0] = [corners[1], corners[2], corners[3]]
+  board[-1][-1] = [corners[1], corners[2], corners[3]]
+
+  solved = {corners[0]: True}
+
+  changed = True
+  while changed:
+    changed = filter_impossible(board, tile_map, solved)
+    print_board(board)
+    print
 
 main()
