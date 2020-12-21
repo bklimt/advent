@@ -235,6 +235,7 @@ def main():
   if len(corners) != 4:
     raise Exception("oh no!")
 
+  # 16192267830719
   print 'Part 1:', corners[0] * corners[1] * corners[2] * corners[3]
   print
 
