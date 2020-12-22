@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -13,11 +14,12 @@ type Recipe struct {
 }
 
 type Input struct {
-	AllergenIdToName   []string
-	AllergenNameToId   map[string]int
-	IngredientIdToName []string
-	IngredientNameToId map[string]int
-	Recipes            []*Recipe
+	AllergenIdToName         []string
+	AllergenNameToId         map[string]int
+	IngredientIdToName       []string
+	IngredientNameToId       map[string]int
+	Recipes                  []*Recipe
+	AllergenIdToIngredientId map[int]int
 }
 
 func (input *Input) Filter() (bool, bool, error) {
@@ -64,6 +66,7 @@ func (input *Input) Filter() (bool, bool, error) {
 		}
 		ingredientName := input.IngredientIdToName[ingredientId]
 		fmt.Printf("  was only found in 1 ingredient: %d %q\n", ingredientId, ingredientName)
+		input.AllergenIdToIngredientId[allergenId] = ingredientId
 
 		for _, recipe := range input.Recipes {
 			delete(recipe.Allergens, allergenId)
@@ -79,6 +82,24 @@ func (input *Input) Part1() int {
 		ans = ans + len(recipe.Ingredients)
 	}
 	return ans
+}
+
+func (input *Input) Part2() string {
+	allergenNames := []string{}
+	for _, allergen := range input.AllergenIdToName {
+		allergenNames = append(allergenNames, allergen)
+	}
+	sort.Strings(allergenNames)
+
+	ingredientNames := []string{}
+	for _, allergenName := range allergenNames {
+		allergenId := input.AllergenNameToId[allergenName]
+		ingredientId := input.AllergenIdToIngredientId[allergenId]
+		ingredientName := input.IngredientIdToName[ingredientId]
+		ingredientNames = append(ingredientNames, ingredientName)
+	}
+
+	return strings.Join(ingredientNames, ",")
 }
 
 func (input *Input) ParseRecipe(line string) error {
@@ -133,10 +154,12 @@ func ReadInput(path string) (*Input, error) {
 	scanner := bufio.NewScanner(f)
 
 	input := &Input{
-		AllergenIdToName:   []string{},
-		AllergenNameToId:   make(map[string]int),
-		IngredientIdToName: []string{},
-		IngredientNameToId: make(map[string]int),
+		AllergenIdToName:         []string{},
+		AllergenNameToId:         make(map[string]int),
+		IngredientIdToName:       []string{},
+		IngredientNameToId:       make(map[string]int),
+		Recipes:                  []*Recipe{},
+		AllergenIdToIngredientId: make(map[int]int),
 	}
 
 	for scanner.Scan() {
@@ -175,4 +198,5 @@ func main() {
 	}
 
 	fmt.Printf("\nPart 1: %d\n", input.Part1())
+	fmt.Printf("\nPart 2: %s\n", input.Part2())
 }
