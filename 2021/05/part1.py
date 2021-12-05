@@ -17,8 +17,8 @@ for line in f:
   x1, y1 = left.split(',')
   x2, y2 = right.split(',')
   x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-  if x1 != x2 and y1 != y2:
-    continue
+  #if x1 != x2 and y1 != y2:
+  #  continue
   dx = direction(x1, x2)
   dy = direction(y1, y2)
   x = x1
