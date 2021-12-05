@@ -170,19 +170,34 @@ absl::StatusOr<std::vector<int>> ReadNumbers(std::ifstream& in) {
 }
 
 absl::Status Main() {
+  bool part1 = false;
+
   ASSIGN_OR_RETURN(auto in, OpenFile("2021/04/input.txt"));
   ASSIGN_OR_RETURN(auto numbers, ReadNumbers(in));
   ASSIGN_OR_RETURN(auto boards, ReadBoards(in));
 
   for (auto number : numbers) {
+    std::vector<Board> remaining;
     for (auto& board : boards) {
       if (board.Mark(number)) {
         std::cout << "winner: " << board.ToString() << std::endl;
         std::cout << "answer: " << board.SumUnmarked() * number << std::endl;
-        return absl::OkStatus();
+        if (part1) {
+          return absl::OkStatus();
+        }
+      } else {
+        if (!part1) {
+          remaining.emplace_back(std::move(board));
+        }
       }
+    }
+    if (!part1) {
+      boards = std::move(remaining);
     }
   }
 
-  return absl::InternalError("no winner");
+  if (part1) {
+    return absl::InternalError("no winner");
+  }
+  return absl::OkStatus();
 }
