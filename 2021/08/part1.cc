@@ -212,17 +212,20 @@ absl::Status Main() {
   ASSIGN_OR_RETURN(auto in, OpenFile("2021/08/input.txt"));
 
   int part1 = 0;
+  int part2 = 0;
 
   auto line = ReadLine(in);
   while (line) {
     if (*line != "") {
       ASSIGN_OR_RETURN(auto pair, DecodeLine(*line));
       part1 += pair.first;
+      part2 += pair.second;
     }
     line = ReadLine(in);
   }
 
   std::cout << part1 << std::endl;
+  std::cout << part2 << std::endl;
 
   return absl::OkStatus();
 }
