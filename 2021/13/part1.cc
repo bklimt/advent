@@ -34,20 +34,38 @@ class Paper {
 };
 
 absl::Status Paper::Read(std::ifstream& in) {
+  bool part1 = true;
   auto line = ReadLine(in);
   while (line) {
     if (*line == "") {
-      return absl::OkStatus();
-    }
+      part1 = false;
+    } else if (part1) {
+      ASSIGN_OR_RETURN(auto numbers, ParseNumbers(*line));
+      if (numbers.size() != 2) {
+        return absl::InternalError(absl::StrCat("invalid line: ", *line));
+      }
 
-    ASSIGN_OR_RETURN(auto numbers, ParseNumbers(*line));
-    if (numbers.size() != 2) {
-      return absl::InternalError(absl::StrCat("invalid line: ", *line));
+      dots_.insert(std::make_pair(numbers[0], numbers[1]));
+      max_x_ = std::max(numbers[0], max_x_);
+      max_y_ = std::max(numbers[1], max_y_);
+    } else {
+      // Process the fold instructions.
+      if (!absl::StartsWith(*line, "fold along ")) {
+        return absl::InternalError(absl::StrCat("invalid line: ", *line));
+      }
+      std::string num_part = line->substr(13);
+      int n;
+      if (!absl::SimpleAtoi(num_part, &n)) {
+        return absl::InternalError(absl::StrCat("invalid number: ", num_part));
+      }
+      if ((*line)[11] == 'x') {
+        FoldX(n);
+      } else if ((*line)[11] == 'y') {
+        FoldY(n);
+      } else {
+        return absl::InternalError(absl::StrCat("invalid line: ", *line));
+      }
     }
-
-    dots_.insert(std::make_pair(numbers[0], numbers[1]));
-    max_x_ = std::max(numbers[0], max_x_);
-    max_y_ = std::max(numbers[1], max_y_);
 
     line = ReadLine(in);
   }
@@ -100,14 +118,13 @@ absl::Status Main() {
 
   Paper paper;
   RETURN_IF_ERROR(paper.Read(in));
-  // paper.Print();
+  paper.Print();
 
   std::cout << std::endl;
 
-  paper.FoldX(655);
+  // paper.FoldX(655);
   // paper.Print();
-
-  std::cout << "Part 1: " << paper.DotCount() << std::endl;
+  // std::cout << "Part 1: " << paper.DotCount() << std::endl;
 
   return absl::OkStatus();
 }
