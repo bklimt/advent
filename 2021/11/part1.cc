@@ -120,16 +120,20 @@ absl::Status Main() {
 
   int total_flashes = 0;
 
-  for (int i = 1; i <= 100; i++) {
+  for (int i = 1; true; i++) {
     int flashes = day11.Step();
     total_flashes += flashes;
+    if (flashes == 100) {
+      std::cout << "Part 2: " << i << std::endl;
+      return absl::OkStatus();
+    }
     // std::cout << std::endl;
     // std::cout << "After " << i << " steps:" << std::endl;
     // day11.Print();
     // std::cout << "Flashes: " << flashes << std::endl;
-  }
-  std::cout << std::endl;
-  std::cout << "Total flashes: " << total_flashes << std::endl;
 
-  return absl::OkStatus();
+    if (i == 100) {
+      std::cout << "Part 1: " << total_flashes << std::endl;
+    }
+  }
 }
