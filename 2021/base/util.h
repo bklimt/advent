@@ -29,6 +29,8 @@ absl::StatusOr<std::ifstream> OpenFile(absl::string_view path);
 
 absl::optional<std::string> ReadLine(std::ifstream& in);
 
+absl::StatusOr<std::vector<int>> ParseNumbers(const std::string& line);
+
 absl::StatusOr<std::vector<int>> ReadNumbers(std::ifstream& in);
 
 #endif  // __BASE_UTIL_H__

@@ -22,13 +22,8 @@ absl::optional<std::string> ReadLine(std::ifstream& in) {
   return line;
 }
 
-absl::StatusOr<std::vector<int>> ReadNumbers(std::ifstream& in) {
-  auto line1 = ReadLine(in);
-  if (!line1) {
-    return absl::InvalidArgumentError("expected list of numbers");
-  }
-
-  std::vector<absl::string_view> parts = absl::StrSplit(*line1, ",");
+absl::StatusOr<std::vector<int>> ParseNumbers(const std::string& line) {
+  std::vector<absl::string_view> parts = absl::StrSplit(line, ",");
   std::vector<int> numbers;
   for (auto& part : parts) {
     int n;
@@ -38,4 +33,12 @@ absl::StatusOr<std::vector<int>> ReadNumbers(std::ifstream& in) {
     numbers.push_back(n);
   }
   return numbers;
+}
+
+absl::StatusOr<std::vector<int>> ReadNumbers(std::ifstream& in) {
+  auto line = ReadLine(in);
+  if (!line) {
+    return absl::InvalidArgumentError("expected list of numbers");
+  }
+  return ParseNumbers(*line);
 }
