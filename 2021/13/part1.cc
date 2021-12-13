@@ -22,6 +22,11 @@ class Paper {
   absl::Status Read(std::ifstream& in);
   void Print() const;
 
+  void FoldX(int x);
+  void FoldY(int y);
+
+  int DotCount() const;
+
  private:
   int max_x_;
   int max_y_;
@@ -62,12 +67,47 @@ void Paper::Print() const {
   }
 }
 
+void Paper::FoldX(int x) {
+  std::set<std::pair<int, int>> new_dots;
+  for (const auto& dot : dots_) {
+    if (dot.first > x) {
+      new_dots.insert(std::make_pair(x - (dot.first - x), dot.second));
+    } else {
+      new_dots.insert(dot);
+    }
+  }
+  dots_ = std::move(new_dots);
+  max_x_ = x;
+}
+
+void Paper::FoldY(int y) {
+  std::set<std::pair<int, int>> new_dots;
+  for (const auto& dot : dots_) {
+    if (dot.second > y) {
+      new_dots.insert(std::make_pair(dot.first, y - (dot.second - y)));
+    } else {
+      new_dots.insert(dot);
+    }
+  }
+  dots_ = std::move(new_dots);
+  max_y_ = y;
+}
+
+int Paper::DotCount() const { return dots_.size(); }
+
 absl::Status Main() {
   ASSIGN_OR_RETURN(auto in, OpenFile("2021/13/input.txt"));
 
   Paper paper;
   RETURN_IF_ERROR(paper.Read(in));
-  paper.Print();
+  // paper.Print();
+
+  std::cout << std::endl;
+
+  paper.FoldX(655);
+  // paper.Print();
+
+  std::cout << "Part 1: " << paper.DotCount() << std::endl;
 
   return absl::OkStatus();
 }
