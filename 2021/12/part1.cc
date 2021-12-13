@@ -30,10 +30,15 @@ class Cave {
                            (big_ ? "true" : "false"));
   }
 
+  void AddAdjacent(int other) { adjacent_.insert(other); }
+
+  const std::set<int>& adjacent() const { return adjacent_; }
+
  private:
   std::string name_;
   int index_;
   bool big_;
+  std::set<int> adjacent_;
 };
 
 class Graph {
@@ -48,9 +53,9 @@ class Graph {
         }
         int a = UpsertCave(parts[0]);
         int b = UpsertCave(parts[1]);
-        adjacency_.insert(std::make_pair(a, b));
+        caves_[a].AddAdjacent(b);
         if (parts[0] != "start" && parts[1] != "end") {
-          adjacency_.insert(std::make_pair(b, a));
+          caves_[b].AddAdjacent(a);
         }
       }
       line = ReadLine(in);
@@ -80,18 +85,43 @@ class Graph {
   void Print() const {
     for (const Cave& cave : caves_) {
       std::cout << cave.ToString() << std::endl;
+      for (int other : cave.adjacent()) {
+        std::cout << cave.name() << "-" << caves_[other].name() << std::endl;
+      }
     }
     std::cout << std::endl;
-    for (auto pair : adjacency_) {
-      std::cout << caves_[pair.first].name() << "-"
-                << caves_[pair.second].name() << std::endl;
+  }
+
+  int CountPaths(int start, int end, std::vector<bool>& visited) const {
+    if (start == end) {
+      return 1;
     }
+    if (visited[start]) {
+      return 0;
+    }
+    if (!caves_[start].big()) {
+      visited[start] = true;
+    }
+
+    int paths = 0;
+    for (int other : caves_[start].adjacent()) {
+      paths += CountPaths(other, end, visited);
+    }
+
+    visited[start] = false;
+    return paths;
+  }
+
+  int CountAllPaths() {
+    std::vector<bool> visited(caves_.size(), false);
+    int start = name_index_["start"];
+    int end = name_index_["end"];
+    return CountPaths(start, end, visited);
   }
 
  private:
   std::vector<Cave> caves_;
   std::map<std::string, int> name_index_;
-  std::set<std::pair<int, int>> adjacency_;
 };
 
 absl::Status Main() {
@@ -100,6 +130,8 @@ absl::Status Main() {
   Graph graph;
   RETURN_IF_ERROR(graph.ReadFile(in));
   graph.Print();
+
+  std::cout << "Part 1: " << graph.CountAllPaths() << std::endl;
 
   return absl::OkStatus();
 }
