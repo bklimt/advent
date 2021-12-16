@@ -112,11 +112,11 @@ absl::Status Grid::Read(std::ifstream& in) {
   std::cout << "Initializing distances..." << std::endl;
   for (int i = 0; i < size; i++) {
     for (int j = 0; j < size; j++) {
-      queue.emplace_back(std::make_pair(i, j));
       nodes_[i][j].set_dist(infinity);
     }
   }
   nodes_[0][0].set_dist(0);
+  queue.emplace_back(std::make_pair(0, 0));
 
   auto by_dist = [&](const std::pair<int, int>& lhs,
                      const std::pair<int, int>& rhs) {
@@ -127,9 +127,7 @@ absl::Status Grid::Read(std::ifstream& in) {
   absl::Time start = absl::Now();
   int total_nodes = size * size;
 
-  // std::cout << "Sorting queue..." << std::endl;
   int processed = 0;
-  std::sort(queue.begin(), queue.end(), by_dist);
   while (!queue.empty()) {
     std::pair<int, int> current_pos = queue.back();
     queue.pop_back();
@@ -142,7 +140,8 @@ absl::Status Grid::Read(std::ifstream& in) {
           elapsed * (static_cast<double>(total_nodes - processed) / processed);
       absl::Time end_time = now + remaining_time;
       std::cout << "Remaining: " << remaining_time << " at " << end_time << " ("
-                << (total_nodes - processed) << " nodes)" << std::endl;
+                << (total_nodes - processed) << " nodes, " << queue.size()
+                << " in queue)" << std::endl;
     }
 
     // std::cout << "Remaining: " << queue.size() << std::endl;
@@ -162,6 +161,11 @@ absl::Status Grid::Read(std::ifstream& in) {
     int new_dist = current.dist() + other.risk();                              \
     if (new_dist < other.dist()) {                                             \
       other.set_dist(new_dist);                                                \
+      if (!other.visited()) {                                                  \
+        other.set_visited(true);                                               \
+        queue.push_back(std::make_pair(current_pos.first + drow,               \
+                                       current_pos.second + dcol));            \
+      }                                                                        \
       needs_sort = true;                                                       \
     }                                                                          \
   } while (0)
