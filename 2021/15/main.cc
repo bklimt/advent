@@ -11,6 +11,25 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 
+inline int weird_mod_10(int x) { return ((x - 1) % 9) + 1; }
+
+class Node {
+ public:
+  explicit Node(int risk) : risk_(risk), dist_(0), visited_(false) {}
+
+  int risk() const { return risk_; }
+  int dist() const { return dist_; }
+  bool visited() const { return visited_; }
+
+  void set_dist(int dist) { dist_ = dist; }
+  void set_visited(bool visited) { visited_ = visited; }
+
+ private:
+  int risk_;
+  int dist_;
+  bool visited_;
+};
+
 class Grid {
  public:
   Grid() {}
@@ -25,10 +44,7 @@ class Grid {
 
  private:
   // The input grid.
-  std::vector<std::vector<int>> risk_;
-
-  // The distance from 0, 0 to each coordinate.
-  std::vector<std::vector<int>> dist_;
+  std::vector<std::vector<Node>> nodes_;
 };
 
 absl::Status Grid::Read(std::ifstream& in) {
@@ -36,38 +52,59 @@ absl::Status Grid::Read(std::ifstream& in) {
   auto line = ReadLine(in);
   while (line) {
     if (*line != "") {
-      if (!risk_.empty()) {
-        if (line->size() != risk_[0].size()) {
+      if (!nodes_.empty()) {
+        if ((line->size() * 5) != nodes_[0].size()) {
           return absl::InternalError(
               absl::StrFormat("inconsistent line length: %d vs %d",
-                              line->size(), risk_[0].size()));
+                              line->size() * 5, nodes_[0].size()));
         }
       }
 
-      std::vector<int> row;
+      std::vector<Node> row;
       for (char c : *line) {
         if (c < '0' || c > '9') {
           return absl::InternalError(
               absl::StrFormat("invalid character: %c", c));
         }
-        row.push_back(c - '0');
+        row.emplace_back(Node(c - '0'));
       }
-      dist_.emplace_back(std::vector<int>(row.size(), 0));
-      risk_.emplace_back(std::move(row));
+
+      int original_size = row.size();
+      for (int i = 1; i < 5; i++) {
+        for (int j = 0; j < original_size; j++) {
+          row.push_back(Node(weird_mod_10(row[j].risk() + i)));
+        }
+      }
+
+      nodes_.emplace_back(std::move(row));
     }
     line = ReadLine(in);
   }
 
-  if (risk_.empty()) {
-    return absl::InternalError("no data");
-  }
-  if (risk_[0].size() != risk_.size()) {
-    return absl::InternalError(
-        absl::StrFormat("not square: %d vs %d", risk_[0].size(), risk_.size()));
+  int original_size = nodes_.size();
+  for (int i = 1; i < 5; i++) {
+    for (int j = 0; j < original_size; j++) {
+      std::vector<Node> row;
+      for (auto& node : nodes_[j]) {
+        row.emplace_back(Node(weird_mod_10(node.risk() + i)));
+      }
+      nodes_.emplace_back(std::move(row));
+    }
   }
 
-  const int size = static_cast<int>(risk_.size());
+  if (nodes_.empty()) {
+    return absl::InternalError("no data");
+  }
+  if (nodes_[0].size() != nodes_.size()) {
+    return absl::InternalError(absl::StrFormat(
+        "not square: %d vs %d", nodes_[0].size(), nodes_.size()));
+  }
+
+  // Print();
+
+  const int size = static_cast<int>(nodes_.size());
   const int infinity = size * size * 10 + 1;
+  std::cout << "size = " << size << std::endl;
 
   // Initialize the distances.
   std::vector<std::pair<int, int>> queue;
@@ -76,61 +113,70 @@ absl::Status Grid::Read(std::ifstream& in) {
   for (int i = 0; i < size; i++) {
     for (int j = 0; j < size; j++) {
       queue.emplace_back(std::make_pair(i, j));
-      dist_[i][j] = infinity;
+      nodes_[i][j].set_dist(infinity);
     }
   }
-  dist_[0][0] = 0;
+  nodes_[0][0].set_dist(0);
 
   auto by_dist = [&](const std::pair<int, int>& lhs,
                      const std::pair<int, int>& rhs) {
-    return dist_[lhs.first][lhs.second] > dist_[rhs.first][rhs.second];
+    return nodes_[lhs.first][lhs.second].dist() >
+           nodes_[rhs.first][rhs.second].dist();
   };
 
+  absl::Time start = absl::Now();
+  int total_nodes = size * size;
+
+  // std::cout << "Sorting queue..." << std::endl;
+  int processed = 0;
   std::sort(queue.begin(), queue.end(), by_dist);
   while (!queue.empty()) {
-    std::pair<int, int> current = queue.back();
+    std::pair<int, int> current_pos = queue.back();
     queue.pop_back();
+    processed++;
 
-    std::cout << "Considering " << current.first << ", " << current.second
-              << "..." << std::endl;
+    if (queue.size() % 100 == 0) {
+      absl::Time now = absl::Now();
+      absl::Duration elapsed = now - start;
+      absl::Duration remaining_time =
+          elapsed * (static_cast<double>(total_nodes - processed) / processed);
+      absl::Time end_time = now + remaining_time;
+      std::cout << "Remaining: " << remaining_time << " at " << end_time << " ("
+                << (total_nodes - processed) << " nodes)" << std::endl;
+    }
 
-    if (current.first == (size - 1) && current.second == (size - 1)) {
+    // std::cout << "Remaining: " << queue.size() << std::endl;
+    // std::cout << "Considering " << current.first << ", " << current.second
+    //          << "..." << std::endl;
+
+    if (current_pos.first == (size - 1) && current_pos.second == (size - 1)) {
       break;
     }
 
     bool needs_sort = false;
+    Node& current = nodes_[current_pos.first][current_pos.second];
 
-    if (current.first > 0) {
-      int new_dist = dist_[current.first][current.second] +
-                     risk_[current.first - 1][current.second];
-      if (new_dist < dist_[current.first - 1][current.second]) {
-        dist_[current.first - 1][current.second] = new_dist;
-        needs_sort = true;
-      }
+#define TRY_DIR(drow, dcol)                                                    \
+  do {                                                                         \
+    Node& other = nodes_[current_pos.first + drow][current_pos.second + dcol]; \
+    int new_dist = current.dist() + other.risk();                              \
+    if (new_dist < other.dist()) {                                             \
+      other.set_dist(new_dist);                                                \
+      needs_sort = true;                                                       \
+    }                                                                          \
+  } while (0)
+
+    if (current_pos.first > 0) {
+      TRY_DIR(-1, 0);
     }
-    if (current.second > 0) {
-      int new_dist = dist_[current.first][current.second] +
-                     risk_[current.first][current.second - 1];
-      if (new_dist < dist_[current.first][current.second - 1]) {
-        dist_[current.first][current.second - 1] = new_dist;
-        needs_sort = true;
-      }
+    if (current_pos.second > 0) {
+      TRY_DIR(0, -1);
     }
-    if (current.first < size - 1) {
-      int new_dist = dist_[current.first][current.second] +
-                     risk_[current.first + 1][current.second];
-      if (new_dist < dist_[current.first + 1][current.second]) {
-        dist_[current.first + 1][current.second] = new_dist;
-        needs_sort = true;
-      }
+    if (current_pos.first < size - 1) {
+      TRY_DIR(1, 0);
     }
-    if (current.second < size - 1) {
-      int new_dist = dist_[current.first][current.second] +
-                     risk_[current.first][current.second + 1];
-      if (new_dist < dist_[current.first][current.second + 1]) {
-        dist_[current.first][current.second + 1] = new_dist;
-        needs_sort = true;
-      }
+    if (current_pos.second < size - 1) {
+      TRY_DIR(0, 1);
     }
 
     if (needs_sort) {
@@ -138,15 +184,16 @@ absl::Status Grid::Read(std::ifstream& in) {
     }
   }
 
-  std::cout << "Shortest risk: " << dist_[size - 1][size - 1] << std::endl;
+  std::cout << "Shortest risk: " << nodes_[size - 1][size - 1].dist()
+            << std::endl;
 
   return absl::OkStatus();
 }
 
 void Grid::Print() const {
-  for (const auto& row : risk_) {
-    for (int n : row) {
-      std::cout << (n + '0');
+  for (const auto& row : nodes_) {
+    for (const Node& n : row) {
+      std::cout << n.risk();
     }
     std::cout << std::endl;
   }
