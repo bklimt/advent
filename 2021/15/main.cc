@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <queue>
 
 #include "2021/base/util.h"
 #include "absl/status/status.h"
@@ -26,13 +27,7 @@ class Grid {
   // The input grid.
   std::vector<std::vector<int>> risk_;
 
-  // Map from row, column in input to a node index.
-  std::map<std::pair<int, int>, int> coord_to_index_;
-
-  // Map from node index to row, column.
-  std::vector<std::pair<int, int>> index_to_coord_;
-
-  // dist_[i][j] is the shortest distance from node i to node j.
+  // The distance from 0, 0 to each coordinate.
   std::vector<std::vector<int>> dist_;
 };
 
@@ -57,6 +52,7 @@ absl::Status Grid::Read(std::ifstream& in) {
         }
         row.push_back(c - '0');
       }
+      dist_.emplace_back(std::vector<int>(row.size(), 0));
       risk_.emplace_back(std::move(row));
     }
     line = ReadLine(in);
@@ -70,66 +66,79 @@ absl::Status Grid::Read(std::ifstream& in) {
         absl::StrFormat("not square: %d vs %d", risk_[0].size(), risk_.size()));
   }
 
-  int size = static_cast<int>(risk_.size());
+  const int size = static_cast<int>(risk_.size());
+  const int infinity = size * size * 10 + 1;
 
-  // Create notes out of them.
-  std::cout << "Creating index..." << std::endl;
+  // Initialize the distances.
+  std::vector<std::pair<int, int>> queue;
+
+  std::cout << "Initializing distances..." << std::endl;
   for (int i = 0; i < size; i++) {
     for (int j = 0; j < size; j++) {
-      coord_to_index_[std::make_pair(i, j)] = index_to_coord_.size();
-      index_to_coord_.push_back(std::make_pair(i, j));
+      queue.emplace_back(std::make_pair(i, j));
+      dist_[i][j] = infinity;
+    }
+  }
+  dist_[0][0] = 0;
+
+  auto by_dist = [&](const std::pair<int, int>& lhs,
+                     const std::pair<int, int>& rhs) {
+    return dist_[lhs.first][lhs.second] > dist_[rhs.first][rhs.second];
+  };
+
+  std::sort(queue.begin(), queue.end(), by_dist);
+  while (!queue.empty()) {
+    std::pair<int, int> current = queue.back();
+    queue.pop_back();
+
+    std::cout << "Considering " << current.first << ", " << current.second
+              << "..." << std::endl;
+
+    if (current.first == (size - 1) && current.second == (size - 1)) {
+      break;
+    }
+
+    bool needs_sort = false;
+
+    if (current.first > 0) {
+      int new_dist = dist_[current.first][current.second] +
+                     risk_[current.first - 1][current.second];
+      if (new_dist < dist_[current.first - 1][current.second]) {
+        dist_[current.first - 1][current.second] = new_dist;
+        needs_sort = true;
+      }
+    }
+    if (current.second > 0) {
+      int new_dist = dist_[current.first][current.second] +
+                     risk_[current.first][current.second - 1];
+      if (new_dist < dist_[current.first][current.second - 1]) {
+        dist_[current.first][current.second - 1] = new_dist;
+        needs_sort = true;
+      }
+    }
+    if (current.first < size - 1) {
+      int new_dist = dist_[current.first][current.second] +
+                     risk_[current.first + 1][current.second];
+      if (new_dist < dist_[current.first + 1][current.second]) {
+        dist_[current.first + 1][current.second] = new_dist;
+        needs_sort = true;
+      }
+    }
+    if (current.second < size - 1) {
+      int new_dist = dist_[current.first][current.second] +
+                     risk_[current.first][current.second + 1];
+      if (new_dist < dist_[current.first][current.second + 1]) {
+        dist_[current.first][current.second + 1] = new_dist;
+        needs_sort = true;
+      }
+    }
+
+    if (needs_sort) {
+      std::sort(queue.begin(), queue.end(), by_dist);
     }
   }
 
-  int nodes = static_cast<int>(index_to_coord_.size());
-
-  // Compute the initial distances.
-  for (int i = 0; i < nodes; i++) {
-    dist_.emplace_back(std::vector<int>(nodes, 0));
-  }
-  std::cout << "Computing initial distances..." << std::endl;
-  for (int i = 0; i < size; i++) {
-    for (int j = 0; j < size; j++) {
-      int start = coord_to_index_[std::make_pair(i, j)];
-      // Up.
-      if (i > 0) {
-        dist_[start][coord_to_index_[std::make_pair(i - 1, j)]] =
-            risk_[i - 1][j];
-      }
-      if (i < size - 1) {
-        dist_[start][coord_to_index_[std::make_pair(i + 1, j)]] =
-            risk_[i + 1][j];
-      }
-      if (j > 0) {
-        dist_[start][coord_to_index_[std::make_pair(i, j - 1)]] =
-            risk_[i][j - 1];
-      }
-      if (j < size - 1) {
-        dist_[start][coord_to_index_[std::make_pair(i, j + 1)]] =
-            risk_[i][j + 1];
-      }
-    }
-  }
-
-  std::cout << "Finding shorter paths..." << std::endl;
-  for (int k = 0; k < nodes; k++) {
-    double progress = static_cast<double>(k) / nodes;
-    progress *= 100;
-    std::cout << progress << "%: Considering node " << k << " of " << nodes
-              << std::endl;
-    for (int i = 0; i < nodes; i++) {
-      for (int j = 0; j < nodes; j++) {
-        if (i == j || i == k || j == k) {
-          continue;
-        }
-        if (dist_[i][k] + dist_[k][j] < dist_[i][j]) {
-          dist_[i][j] = dist_[i][k] + dist_[k][j];
-        }
-      }
-    }
-  }
-
-  std::cout << "Finished finding paths." << std::endl;
+  std::cout << "Shortest risk: " << dist_[size - 1][size - 1] << std::endl;
 
   return absl::OkStatus();
 }
@@ -148,7 +157,7 @@ absl::Status Main() {
 
   Grid grid;
   RETURN_IF_ERROR(grid.Read(in));
-  grid.Print();
+  // grid.Print();
 
   std::cout << std::endl;
 
