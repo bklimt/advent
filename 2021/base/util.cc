@@ -42,3 +42,10 @@ absl::StatusOr<std::vector<int>> ReadNumbers(std::ifstream& in) {
   }
   return ParseNumbers(*line);
 }
+
+std::ostream& operator<<(std::ostream& out, const Indent& indent) {
+  for (int i = 0; i < indent.depth(); i++) {
+    out << "  ";
+  }
+  return out;
+}

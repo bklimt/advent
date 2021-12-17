@@ -33,4 +33,15 @@ absl::StatusOr<std::vector<int>> ParseNumbers(const std::string& line);
 
 absl::StatusOr<std::vector<int>> ReadNumbers(std::ifstream& in);
 
+class Indent {
+ public:
+  explicit Indent(int depth) : depth_(depth) {}
+  int depth() const { return depth_; }
+
+ private:
+  int depth_;
+};
+
+std::ostream& operator<<(std::ostream& out, const Indent& indent);
+
 #endif  // __BASE_UTIL_H__
