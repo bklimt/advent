@@ -171,6 +171,84 @@ class Packet {
     return version;
   }
 
+  template <typename T>
+  absl::StatusOr<T> Compute() const {
+    std::vector<T> subresults;
+    for (const Packet& packet : subpackets_) {
+      ASSIGN_OR_RETURN(T val, packet.Compute<T>());
+      subresults.emplace_back(std::move(val));
+    }
+
+    switch (type_) {
+      case 0: {
+        T sum = 0;
+        for (auto sub : subresults) {
+          sum += sub;
+        }
+        return sum;
+      }
+
+      case 1: {
+        T product = 1;
+        for (auto sub : subresults) {
+          product *= sub;
+        }
+        return product;
+      }
+
+      case 2: {
+        if (subpackets_.size() < 1) {
+          return absl::InternalError("not enough args to min");
+        }
+        T min = subresults[0];
+        for (auto sub : subresults) {
+          if (sub < min) {
+            min = sub;
+          }
+        }
+        return min;
+      }
+
+      case 3: {
+        if (subpackets_.size() < 1) {
+          return absl::InternalError("not enough args to max");
+        }
+        T max = subresults[0];
+        for (auto sub : subresults) {
+          if (sub > max) {
+            max = sub;
+          }
+        }
+        return max;
+      }
+
+      case 4: {
+        return static_cast<T>(value_);
+      }
+
+      case 5: {
+        if (subpackets_.size() != 2) {
+          return absl::InternalError("incorrect args to greater than");
+        }
+        return (subresults[0] > subresults[1]) ? 1 : 0;
+      }
+
+      case 6: {
+        if (subpackets_.size() != 2) {
+          return absl::InternalError("incorrect args to less than");
+        }
+        return (subresults[0] < subresults[1]) ? 1 : 0;
+      }
+
+      case 7: {
+        if (subpackets_.size() != 2) {
+          return absl::InternalError("incorrect args to equal to");
+        }
+        return (subresults[0] == subresults[1]) ? 1 : 0;
+      }
+    }
+  }
+
  private:
   template <typename T>
   absl::StatusOr<T> ParseInt(BitStream* bits, int count) {
@@ -225,7 +303,10 @@ absl::Status Main() {
   ASSIGN_OR_RETURN(auto packet, Packet::FromHex(*line));
 
   std::cout << packet << std::endl;
-  std::cout << packet.SumVersions() << std::endl;
+  std::cout << "sum versions: " << packet.SumVersions() << std::endl;
+
+  ASSIGN_OR_RETURN(auto compute, packet.Compute<int64_t>());
+  std::cout << "compute: " << compute << std::endl;
 
   return absl::OkStatus();
 }
