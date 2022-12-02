@@ -1,5 +1,4 @@
 bazel-*
-Cargo.lock
 target
 bin/
 obj/
