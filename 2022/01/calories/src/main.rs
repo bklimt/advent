@@ -28,7 +28,7 @@ pub fn load(path: &str) -> Result<(), Error> {
 
     let mut r = BufReader::new(file);
     let mut sum: i64 = 0;
-    let mut max: i64 = 0;
+    let mut max: Vec<i64> = Vec::new();
     loop {
         let mut line = String::new();
         let n = r.read_line(&mut line).unwrap();
@@ -36,9 +36,12 @@ pub fn load(path: &str) -> Result<(), Error> {
 
         if trimmed == "" {
             // println!("Sum: {:?}", sum);
-            if sum > max {
-                max = sum;
+            max.push(sum);
+            max.sort_by(|a, b| b.cmp(a));
+            if max.len() > 3 {
+                max.pop();
             }
+
             sum = 0;
             if n == 0 {
                 break;
@@ -60,7 +63,13 @@ pub fn load(path: &str) -> Result<(), Error> {
         // println!("amount: {:?}", amount);
     }
 
-    println!("Max: {:?}", max);
+    let mut top3: i64 = 0;
+    for n in max.iter() {
+        top3 = top3 + n;
+    }
+
+    println!("Max: {:?}", max[0]);
+    println!("Top 3: {:?}", top3);
     Ok(())
 }
 
