@@ -9,6 +9,9 @@ use std::io::{BufRead, BufReader};
 struct Args {
     #[arg(short, long)]
     path: String,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -25,7 +28,7 @@ pub fn score(c: char) -> u32 {
     };
 }
 
-pub fn process(path: &str) -> Result<(), Error> {
+pub fn process1(path: &str) -> Result<(), Error> {
     let file = match File::open(path) {
         Ok(file) => file,
         Err(error) => {
@@ -64,9 +67,67 @@ pub fn process(path: &str) -> Result<(), Error> {
     Ok(())
 }
 
+pub fn process2(path: &str) -> Result<(), Error> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) => {
+            return Err(Error::InvalidArgument(format!(
+                "unable to open file {:?}: {:?}",
+                path, error
+            )))
+        }
+    };
+
+    let mut r = BufReader::new(file);
+    let mut sum = 0;
+    let mut triad: Vec<HashSet<char>> = Vec::new();
+    loop {
+        let mut line = String::new();
+        let n = r.read_line(&mut line).unwrap();
+        let trimmed = line.trim();
+
+        if trimmed == "" {
+            if n == 0 {
+                break;
+            }
+            continue;
+        }
+
+        triad.push(trimmed.chars().collect());
+        if triad.len() == 3 {
+            let one = triad.pop().unwrap();
+            let two = triad.pop().unwrap();
+            let three = triad.pop().unwrap();
+            let common = one
+                .intersection(&two)
+                .copied()
+                .collect::<HashSet<char>>()
+                .intersection(&three)
+                .copied()
+                .collect::<Vec<char>>();
+
+            let s = fold(common, 0, |n, c| n + score(c));
+            sum = sum + s;
+            triad.clear();
+        }
+    }
+
+    println!("{}", sum);
+
+    Ok(())
+}
+
+pub fn process(path: &str, part2: bool) -> Result<(), Error> {
+    if part2 {
+        process2(path)
+    } else {
+        process1(path)
+    }
+}
+
 fn main() {
     let args = Args::parse();
-    match process(&args.path) {
+    match process(&args.path, args.part2) {
         Ok(_) => (),
         Err(error) => panic!("{:?}", error),
     };
