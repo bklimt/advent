@@ -1,5 +1,4 @@
 use clap::Parser;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -8,6 +7,9 @@ use std::io::{BufRead, BufReader};
 struct Args {
     #[arg(short, long)]
     path: String,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -55,7 +57,7 @@ pub fn load(path: &str) -> Result<Vec<(char, char)>, Error> {
     Ok(matches)
 }
 
-fn beats(you: char, other: char) -> Result<u32, Error> {
+fn beats(you: &char, other: &char) -> Result<u32, Error> {
     // A: Rock
     // B: Paper
     // C: Scissors
@@ -83,10 +85,46 @@ fn beats(you: char, other: char) -> Result<u32, Error> {
     Ok(score)
 }
 
-fn score(matches: &Vec<(char, char)>, xlt: HashMap<char, char>) -> Result<u32, Error> {
+fn part1(you_secret: &char, _other: &char) -> char {
+    return match you_secret {
+        'X' => 'A',
+        'Y' => 'B',
+        'Z' => 'C',
+        _ => {
+            panic!("bad letter: {:?}", you_secret);
+        }
+    };
+}
+
+fn part2(you_secret: &char, other: &char) -> char {
+    return match you_secret {
+        'X' => match other {
+            'A' => 'C',
+            'B' => 'A',
+            'C' => 'B',
+            _ => {
+                panic!("bad letter: {:?}", other);
+            }
+        },
+        'Y' => *other,
+        'Z' => match other {
+            'A' => 'B',
+            'B' => 'C',
+            'C' => 'A',
+            _ => {
+                panic!("bad letter: {:?}", other);
+            }
+        },
+        _ => {
+            panic!("bad letter: {:?}", you_secret);
+        }
+    };
+}
+
+fn score(matches: &Vec<(char, char)>, xlt: fn(&char, &char) -> char) -> Result<u32, Error> {
     let mut score = 0;
     for (other, you_secret) in matches.iter() {
-        let you = xlt.get(you_secret).unwrap();
+        let you = xlt(you_secret, other);
         // A: Rock
         // B: Paper
         // C: Scissors
@@ -98,47 +136,26 @@ fn score(matches: &Vec<(char, char)>, xlt: HashMap<char, char>) -> Result<u32, E
             _ => return Err(Error::InvalidArgument(format!("invalid play {:?}", you))),
         };
 
-        let winner_score = beats(*you, *other)?;
+        let winner_score = beats(&you, other)?;
         let round_score = winner_score + shape_score;
-        println!("round: {:?}", round_score);
+        // println!("round: {:?}", round_score);
         score = score + round_score;
     }
     Ok(score)
 }
 
-fn decode(s: &str) -> HashMap<char, char> {
-    let mut m: HashMap<char, char> = HashMap::new();
-    m.insert('X', s.chars().nth(0).unwrap());
-    m.insert('Y', s.chars().nth(1).unwrap());
-    m.insert('Z', s.chars().nth(2).unwrap());
-    m
-}
-
-fn compute(path: &str) -> Result<(), Error> {
+fn compute(path: &str, p2: bool) -> Result<(), Error> {
     let matches = load(path)?;
-    let mut mappings: Vec<String> = Vec::new();
 
-    mappings.push("ABC".to_string());
-    /*
-    mappings.push("ACB".to_string());
-    mappings.push("BAC".to_string());
-    mappings.push("BCA".to_string());
-    mappings.push("CAB".to_string());
-    mappings.push("CBA".to_string());
-    */
-
-    for mapping in mappings.iter() {
-        let m = decode(mapping);
-        let s = score(&matches, m)?;
-        println!("{:?}: {:?}", mapping, s);
-    }
+    let s = score(&matches, if p2 { part2 } else { part1 })?;
+    println!("{:?}", s);
 
     Ok(())
 }
 
 fn main() {
     let args = Args::parse();
-    match compute(&args.path) {
+    match compute(&args.path, args.part2) {
         Ok(_) => (),
         Err(error) => panic!("{:?}", error),
     };
