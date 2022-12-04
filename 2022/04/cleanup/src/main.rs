@@ -95,7 +95,11 @@ pub fn is_redundant_pair(pair: &(RangeInclusive<u32>, RangeInclusive<u32>)) -> b
     pair.1.start() <= pair.0.end() && pair.1.end() <= pair.0.end()
 }
 
-pub fn process(path: &str, _part2: bool) -> Result<(), Error> {
+pub fn overlap(pair: &(RangeInclusive<u32>, RangeInclusive<u32>)) -> bool {
+    pair.1.start() <= pair.0.end()
+}
+
+pub fn process(path: &str, part2: bool) -> Result<(), Error> {
     let pairs = read(path)?;
     for pair in pairs.iter() {
         println!("{:?}", pair);
@@ -105,7 +109,7 @@ pub fn process(path: &str, _part2: bool) -> Result<(), Error> {
 
     let redundant = pairs
         .into_iter()
-        .filter(is_redundant_pair)
+        .filter(if part2 { overlap } else { is_redundant_pair })
         .collect::<Vec<(RangeInclusive<u32>, RangeInclusive<u32>)>>();
     for pair in redundant.iter() {
         println!("{:?}", pair);
