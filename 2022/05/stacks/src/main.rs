@@ -42,7 +42,7 @@ pub fn print_stacks(stacks: &Vec<String>) -> Result<()> {
     Ok(())
 }
 
-pub fn process_instructions(stacks: &mut Vec<String>, path: &str) -> Result<()> {
+pub fn process_instructions(stacks: &mut Vec<String>, path: &str, part2: bool) -> Result<()> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
     loop {
@@ -71,7 +71,7 @@ pub fn process_instructions(stacks: &mut Vec<String>, path: &str) -> Result<()> 
 
         let (amount_str, line) = line.split_at(space);
         let amount = amount_str
-            .parse::<u32>()
+            .parse::<usize>()
             .with_context(|| format!("invalid amount: {:?}", amount_str))?;
 
         let line = line
@@ -99,24 +99,37 @@ pub fn process_instructions(stacks: &mut Vec<String>, path: &str) -> Result<()> 
             return Err(anyhow!("invalid move from {} to {}", src, dst));
         }
 
-        for _ in 0..amount {
+        if part2 {
             let stack = stacks
                 .get_mut(src)
                 .ok_or_else(|| anyhow!("missing stack: {}", src))?;
 
-            let item = stack.pop().ok_or_else(|| anyhow!("empty stack"))?;
+            let items = stack.split_off(stack.len() - amount);
 
             stacks
                 .get_mut(dst)
                 .ok_or_else(|| anyhow!("missing stack: {}", dst))?
-                .push(item);
+                .push_str(items.as_str());
+        } else {
+            for _ in 0..amount {
+                let stack = stacks
+                    .get_mut(src)
+                    .ok_or_else(|| anyhow!("missing stack: {}", src))?;
+
+                let item = stack.pop().ok_or_else(|| anyhow!("empty stack"))?;
+
+                stacks
+                    .get_mut(dst)
+                    .ok_or_else(|| anyhow!("missing stack: {}", dst))?
+                    .push(item);
+            }
         }
     }
 
     Ok(())
 }
 
-pub fn process(path: &str, _part2: bool) -> Result<()> {
+pub fn process(path: &str, part2: bool) -> Result<()> {
     /*
                   [J]             [B] [W]
                   [T]     [W] [F] [R] [Z]
@@ -140,7 +153,7 @@ pub fn process(path: &str, _part2: bool) -> Result<()> {
     stacks.push("VHPSZWRB".to_string());
     stacks.push("BMJCGHZW".to_string());
 
-    process_instructions(&mut stacks, path)?;
+    process_instructions(&mut stacks, path, part2)?;
 
     for stack in stacks.iter() {
         if stack.len() == 0 {
