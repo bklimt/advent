@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -22,34 +23,34 @@ pub fn read_data(path: &str) -> Result<String> {
     Ok(line.to_string())
 }
 
-pub fn process(path: &str, _part2: bool) -> Result<()> {
+pub fn process(path: &str, span: usize) -> Result<()> {
     let data = read_data(path)?;
     if data.len() < 4 {
         return Err(anyhow!("invalid input: {:?}", path));
     }
 
-    let mut a = data.chars().nth(0).unwrap();
-    let mut b = data.chars().nth(1).unwrap();
-    let mut c = data.chars().nth(2).unwrap();
-    let mut d = data.chars().nth(3).unwrap();
+    let mut previous: VecDeque<char> = VecDeque::new();
+    let mut counts: HashMap<char, usize> = HashMap::new();
+    for (i, c) in data.chars().enumerate() {
+        // Add the new one.
+        counts.insert(c, 1 + counts.get(&c).unwrap_or(&0));
+        previous.push_back(c);
 
-    let mut i: usize = 4;
-    loop {
-        if a != b && a != c && a != d && b != c && b != d && c != d {
-            println!("{}", &data[i - 4..i]);
-            println!("{}", i);
+        // Remove the old one.
+        if previous.len() > span {
+            let c2 = previous.pop_front().unwrap();
+            let n = counts.get(&c2).unwrap();
+            if *n == 1 {
+                counts.remove(&c2);
+            } else {
+                counts.insert(c2, n - 1);
+            }
+        }
+
+        if previous.len() == span && counts.len() == span {
+            println!("{}", i + 1);
             return Ok(());
         }
-
-        if i >= data.len() {
-            break;
-        }
-
-        a = b;
-        b = c;
-        c = d;
-        d = data.chars().nth(i).unwrap();
-        i = i + 1;
     }
 
     Err(anyhow!("no answer found!"))
@@ -57,7 +58,7 @@ pub fn process(path: &str, _part2: bool) -> Result<()> {
 
 fn main() {
     let args = Args::parse();
-    match process(&args.path, args.part2) {
+    match process(&args.path, if args.part2 { 14 } else { 4 }) {
         Ok(_) => (),
         Err(error) => panic!("{:?}", error),
     };
