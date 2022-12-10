@@ -187,11 +187,48 @@ fn sum_small(root: KDirectoryRef) -> usize {
     size
 }
 
+fn find_min_gte(root: KDirectoryRef, target: usize) -> Option<usize> {
+    let mut min_child: Option<usize> = None;
+    for (_, d) in root.borrow().directories.iter() {
+        if let Some(child) = find_min_gte(d.clone(), target) {
+            min_child = Some(match min_child {
+                Some(c) => {
+                    if c < child {
+                        c
+                    } else {
+                        child
+                    }
+                }
+                None => child,
+            });
+        }
+    }
+    if min_child.is_some() {
+        return min_child;
+    }
+
+    let size = root.borrow().size;
+    if size >= target {
+        Some(size)
+    } else {
+        None
+    }
+}
+
 fn process(path: &str, _part2: bool) -> Result<()> {
     let root = process_commands(path)?;
-    compute_size(root.clone());
-    let sum = sum_small(root.clone());
-    println!("{}", sum);
+    let total = compute_size(root.clone());
+    println!(" total = {:9}", total);
+
+    let part1 = sum_small(root.clone());
+    println!(" part1 = {:9}", part1);
+
+    let target = total - 40000000;
+    println!("target = {:9}", target);
+
+    let part2 = find_min_gte(root.clone(), target).unwrap();
+    println!(" part2 = {:9}", part2);
+
     Ok(())
 }
 
