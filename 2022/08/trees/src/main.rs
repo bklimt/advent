@@ -136,12 +136,85 @@ fn count_visible(data: &Vec<Vec<bool>>) -> i32 {
     })
 }
 
+fn compute_scenic(data: &Vec<Vec<u32>>) -> Vec<Vec<u32>> {
+    let height = data.len();
+    let width = data[0].len();
+    let mut result: Vec<Vec<u32>> = Vec::new();
+    for _ in 0..height {
+        let mut row: Vec<u32> = Vec::new();
+        row.resize(width, 0);
+        result.push(row);
+    }
+    for i in 0..height {
+        for j in 0..width {
+            // Check from the left.
+            let mut visible_left = 0;
+            for k in (0..j).rev() {
+                visible_left = visible_left + 1;
+                if data[i][k] >= data[i][j] {
+                    break;
+                }
+            }
+
+            // Check from the right.
+            let mut visible_right = 0;
+            for k in (j + 1)..width {
+                visible_right = visible_right + 1;
+                if data[i][k] >= data[i][j] {
+                    break;
+                }
+            }
+
+            // Check from the top.
+            let mut visible_top = 0;
+            for k in (0..i).rev() {
+                visible_top = visible_top + 1;
+                if data[k][j] >= data[i][j] {
+                    break;
+                }
+            }
+
+            // Check from the bottom.
+            let mut visible_bottom = 0;
+            for k in (i + 1)..height {
+                visible_bottom = visible_bottom + 1;
+                if data[k][j] >= data[i][j] {
+                    break;
+                }
+            }
+
+            result[i][j] = visible_top * visible_bottom * visible_left * visible_right;
+        }
+    }
+    result
+}
+
+fn print_scenery(data: &Vec<Vec<u32>>) {
+    for row in data.iter() {
+        for col in row.iter() {
+            print!("{:3}", *col);
+        }
+        println!("");
+    }
+}
+
+fn max_scenic(data: &Vec<Vec<u32>>) -> u32 {
+    fold(data, 0, |c, row| c.max(fold(row, 0, |c, v| (*v).max(c))))
+}
+
 fn process(path: &str, _part2: bool) -> Result<()> {
     let data = read_input(path)?;
+
     let visibility = compute_visible(&data);
     print_visibility(&visibility);
     let visible = count_visible(&visibility);
     println!("visible = {}", visible);
+
+    let scenery = compute_scenic(&data);
+    print_scenery(&scenery);
+    let scenic = max_scenic(&scenery);
+    println!("scenic = {}", scenic);
+
     Ok(())
 }
 
