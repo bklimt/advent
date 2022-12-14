@@ -47,6 +47,16 @@ impl Tube {
         {
             self.sum = self.sum + (self.cycle * self.register);
         }
+
+        let x = (self.cycle - 1) % 40;
+        if x == 0 {
+            println!("");
+        }
+        if x >= self.register - 1 && x <= self.register + 1 {
+            print!("#");
+        } else {
+            print!(".");
+        }
     }
 
     fn cycle(&mut self) {
