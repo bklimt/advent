@@ -76,7 +76,7 @@ fn read_input(path: &str) -> Result<Map> {
 }
 
 fn can_move(m: &Map, p1: (usize, usize), p2: (usize, usize)) -> bool {
-    ((m.elevation[p2.0][p2.1] as i32) - (m.elevation[p1.0][p1.1] as i32)) <= 1
+    ((m.elevation[p2.0][p2.1] as i32) - (m.elevation[p1.0][p1.1] as i32)) >= -1
 }
 
 fn neighbors(m: &Map, p: (usize, usize)) -> Vec<(usize, usize)> {
@@ -98,7 +98,7 @@ fn neighbors(m: &Map, p: (usize, usize)) -> Vec<(usize, usize)> {
     n
 }
 
-fn dijkstra(m: &Map) -> i32 {
+fn dijkstra(m: &Map, part2: bool) -> i32 {
     let h = m.elevation.len();
     let w = m.elevation[0].len();
     let mut dist: Vec<Vec<i32>> = Vec::new();
@@ -110,7 +110,7 @@ fn dijkstra(m: &Map) -> i32 {
         dist.push(r);
     }
 
-    dist[m.start.0][m.start.1] = 0;
+    dist[m.end.0][m.end.1] = 0;
 
     let mut q = DoublePriorityQueue::new();
     for r in 0..h {
@@ -120,21 +120,34 @@ fn dijkstra(m: &Map) -> i32 {
     }
     while !q.is_empty() {
         let (u, d) = q.pop_min().unwrap();
-        println!("visiting {:3}, {:3} = {}", u.0, u.1, d);
+        // println!("visiting {:3}, {:3} = {}", u.0, u.1, d);
         let n = neighbors(&m, u);
         if d != i32::MAX {
             let alt = d + 1;
             for v in n {
-                println!("neighbor {:3}, {:3} = {}", v.0, v.1, dist[v.0][v.1]);
+                // println!("neighbor {:3}, {:3} = {}", v.0, v.1, dist[v.0][v.1]);
                 if alt < dist[v.0][v.1] {
-                    println!("updating to {}", alt);
+                    // println!("updating to {}", alt);
                     dist[v.0][v.1] = alt;
                     q.push_decrease(v, alt);
                 }
             }
         }
     }
-    dist[m.end.0][m.end.1]
+
+    let mut ans = dist[m.start.0][m.start.1];
+    if part2 {
+        for r in 0..h {
+            for c in 0..w {
+                if m.elevation[r][c] == 0 {
+                    if dist[r][c] < ans {
+                        ans = dist[r][c];
+                    }
+                }
+            }
+        }
+    }
+    ans
 }
 
 fn print_elevation(data: &Vec<Vec<u32>>) {
@@ -151,7 +164,8 @@ fn process(path: &str, _part2: bool) -> Result<()> {
     println!("start: {:3}, {:3}", map.start.0, map.start.1);
     println!("  end: {:3}, {:3}", map.end.0, map.end.1);
     // print_elevation(&map.elevation);
-    println!("  ans: {:3}", dijkstra(&map));
+    println!("ans 1: {:3}", dijkstra(&map, false));
+    println!("ans 2: {:3}", dijkstra(&map, true));
     Ok(())
 }
 
