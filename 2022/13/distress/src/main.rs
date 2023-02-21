@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use itertools::{EitherOrBoth::*, Itertools};
 use std::cmp::Ordering;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::iter::Peekable;
@@ -70,6 +71,20 @@ fn read_token(chars: &mut Peekable<Chars>) -> Result<Token> {
 enum Packet {
     Number(u32),
     List(Vec<Packet>),
+}
+
+impl Packet {
+    fn to_string(&self) -> String {
+        match self {
+            Packet::Number(n) => n.to_string(),
+            Packet::List(v) => vec![
+                "[".to_string(),
+                v.iter().map(|p| p.to_string()).join(","),
+                "]".to_string(),
+            ]
+            .join(""),
+        }
+    }
 }
 
 fn read_list(chars: &mut Peekable<Chars>) -> Result<Packet> {
@@ -171,6 +186,12 @@ impl PartialEq for Packet {
 
 impl Eq for Packet {}
 
+impl Display for Packet {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "{}", self.to_string())
+    }
+}
+
 fn read_input(path: &str) -> Result<Vec<Packet>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
@@ -205,7 +226,7 @@ fn process(path: &str, part2: bool) -> Result<()> {
         packets.push(Packet::List(vec![Packet::List(vec![Packet::Number(6)])]));
         packets.sort();
         for (i, packet) in packets.iter().enumerate() {
-            println!("{:?}", packet);
+            println!("{}", packet);
             if *packet == Packet::List(vec![Packet::List(vec![Packet::Number(2)])]) {
                 ans = ans * (i + 1);
             }
