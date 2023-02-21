@@ -147,11 +147,16 @@ fn read_input(path: &str) -> Result<Map> {
     Ok(m)
 }
 
-fn drop_sand(m: &mut Map) -> bool {
+fn drop_sand(m: &mut Map, part2: bool) -> bool {
     let mut s = (500, 0);
     loop {
         if s.1 > m.max_y {
-            return false;
+            if part2 {
+                m.set(s.0, s.1, Tile::Sand);
+                return true;
+            } else {
+                return false;
+            }
         }
         if match m.get(s.0, s.1 + 1) {
             Tile::Empty => true,
@@ -177,21 +182,27 @@ fn drop_sand(m: &mut Map) -> bool {
             continue;
         }
         m.set(s.0, s.1, Tile::Sand);
+        if part2 && s.0 == 500 && s.1 == 0 {
+            return false;
+        }
         return true;
     }
 }
 
-fn process(path: &str, _part2: bool) -> Result<()> {
+fn process(path: &str, part2: bool) -> Result<()> {
     let mut m = read_input(path)?;
     let mut more = true;
     let mut ans = 0;
     while more {
-        println!("");
-        print_map(&m);
-        more = drop_sand(&mut m);
+        // println!("");
+        // print_map(&m);
+        more = drop_sand(&mut m, part2);
         if more {
             ans = ans + 1;
         }
+    }
+    if part2 {
+        ans = ans + 1;
     }
     println!("\nans: {}", ans);
     Ok(())
