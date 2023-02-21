@@ -151,12 +151,30 @@ fn compare(left: &Packet, right: &Packet) -> Ordering {
     }
 }
 
-fn read_input(path: &str) -> Result<()> {
+impl PartialOrd for Packet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Packet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        compare(self, other)
+    }
+}
+
+impl PartialEq for Packet {
+    fn eq(&self, other: &Self) -> bool {
+        compare(self, other) == Ordering::Equal
+    }
+}
+
+impl Eq for Packet {}
+
+fn read_input(path: &str) -> Result<Vec<Packet>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
-    let mut index = 1;
-    let mut last_packet = Packet::Number(0);
-    let mut sum = 0;
+    let mut packets = Vec::new();
     loop {
         let mut line = String::new();
         let n = r.read_line(&mut line).unwrap();
@@ -169,31 +187,55 @@ fn read_input(path: &str) -> Result<()> {
             continue;
         }
 
-        println!("line: {}", line);
+        // println!("line: {}", line);
 
         let packet = read_packet(line)?;
         // println!("packet: {:?}", packet);
 
-        if index % 2 == 0 {
-            let ans = compare(&last_packet, &packet);
+        packets.push(packet);
+    }
+    Ok(packets)
+}
+
+fn process(path: &str, part2: bool) -> Result<()> {
+    let mut packets = read_input(path)?;
+    if part2 {
+        let mut ans = 1;
+        packets.push(Packet::List(vec![Packet::List(vec![Packet::Number(2)])]));
+        packets.push(Packet::List(vec![Packet::List(vec![Packet::Number(6)])]));
+        packets.sort();
+        for (i, packet) in packets.iter().enumerate() {
+            println!("{:?}", packet);
+            if *packet == Packet::List(vec![Packet::List(vec![Packet::Number(2)])]) {
+                ans = ans * (i + 1);
+            }
+            if *packet == Packet::List(vec![Packet::List(vec![Packet::Number(6)])]) {
+                ans = ans * (i + 1);
+            }
+        }
+        println!("ans = {}", ans);
+    } else {
+        let mut sum = 0;
+        for (i, right) in packets.iter().enumerate() {
+            if i % 2 != 1 {
+                continue;
+            }
+            let index = (i + 1) / 2;
+            println!("Considering {}", index);
+            let left = packets.get(i - 1).unwrap();
+
+            let ans = compare(left, right);
             println!("compare: {:?}", ans);
             println!("");
             match ans {
                 Ordering::Less => {
-                    sum = sum + (index / 2);
+                    sum = sum + index;
                 }
                 _ => {}
             }
         }
-        index = index + 1;
-        last_packet = packet;
+        println!("sum = {}", sum);
     }
-    println!("sum: {}", sum);
-    Ok(())
-}
-
-fn process(path: &str, _part2: bool) -> Result<()> {
-    let _ = read_input(path)?;
     Ok(())
 }
 
