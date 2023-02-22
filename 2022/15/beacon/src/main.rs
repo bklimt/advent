@@ -18,6 +18,9 @@ struct Args {
 
     #[arg(long)]
     y: i64,
+
+    #[arg(long)]
+    x: i64,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -168,9 +171,65 @@ fn do_part1(entries: &Vec<Entry>, y: i64, debug: bool) {
     println!("ans = {}", ans);
 }
 
+fn find_beacon(ranges: &Vec<(i64, i64)>, max_x: i64, debug: bool) -> Option<i64> {
+    let mut x = 0;
+    for range in ranges {
+        if debug {
+            println!("x = {}", x);
+            println!("considering range {:?}", range);
+        }
+        if range.1 < x {
+            if debug {
+                println!("skipping, already scanned");
+            }
+            continue;
+        }
+        if range.0 > x {
+            if debug {
+                println!("found a gap at {} before {}", x, range.0);
+            }
+            return Some(x);
+        }
+        x = range.1;
+        if x > max_x {
+            if debug {
+                println!("past max_x. giving up.");
+            }
+        }
+    }
+    if x <= max_x {
+        if debug {
+            println!("ran out of ranges. returning {}", x);
+        }
+        Some(x)
+    } else {
+        if debug {
+            println!("exhausted ranges");
+        }
+        None
+    }
+}
+
+fn do_part2(entries: &Vec<Entry>, max_x: i64, max_y: i64, debug: bool) {
+    for y in 0..=max_y {
+        let ranges = get_ranges(entries, y);
+        if let Some(x) = find_beacon(&ranges, max_x, debug) {
+            println!("beacon = ({}, {})", x, y);
+            let ans = x * 4000000 + y;
+            println!("ans = {}", ans);
+            return;
+        }
+    }
+    println!("not found");
+}
+
 fn process(args: &Args) -> Result<()> {
     let entries = read_input(&args.path, args.debug)?;
-    do_part1(&entries, args.y, args.debug);
+    if args.part2 {
+        do_part2(&entries, args.x, args.y, args.debug);
+    } else {
+        do_part1(&entries, args.y, args.debug);
+    }
     Ok(())
 }
 
