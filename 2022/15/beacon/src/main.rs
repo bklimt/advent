@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -14,6 +15,9 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    y: i64,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -48,6 +52,20 @@ impl Entry {
             beacon: (bx, by),
         })
     }
+
+    fn dist(&self) -> i64 {
+        (self.sensor.0 - self.beacon.0).abs() + (self.sensor.1 - self.beacon.1).abs()
+    }
+
+    fn range_for_y(&self, y: i64) -> Option<(i64, i64)> {
+        let dist_to_row = (self.sensor.1 - y).abs();
+        let remaining = self.dist() - dist_to_row;
+        if remaining < 0 {
+            None
+        } else {
+            Some((self.sensor.0 - remaining, self.sensor.0 + remaining + 1))
+        }
+    }
 }
 
 fn read_input(path: &str, debug: bool) -> Result<Vec<Entry>> {
@@ -78,14 +96,87 @@ fn read_input(path: &str, debug: bool) -> Result<Vec<Entry>> {
     Ok(entries)
 }
 
-fn process(path: &str, _part2: bool, debug: bool) -> Result<()> {
-    let mut _entries = read_input(path, debug)?;
+fn get_ranges(entries: &Vec<Entry>, y: i64) -> Vec<(i64, i64)> {
+    let mut ranges = Vec::new();
+    for entry in entries {
+        if let Some(range) = entry.range_for_y(y) {
+            ranges.push(range);
+        }
+    }
+    ranges.sort();
+    ranges
+}
+
+fn sum_ranges(ranges: &Vec<(i64, i64)>, debug: bool) -> i64 {
+    let mut x = i64::MIN;
+    let mut sum = 0;
+    for range in ranges {
+        if debug {
+            println!("x = {}", x);
+            println!("considering range {:?}", range);
+        }
+        if range.1 < x {
+            if debug {
+                println!("skipping");
+            }
+            continue;
+        }
+        let start = x.max(range.0);
+        if debug {
+            println!("adding ({}, {})", start, range.1);
+        }
+        sum = sum + (range.1 - start);
+        x = range.1;
+        if debug {
+            println!("sum = {}", sum);
+        }
+    }
+    sum
+}
+
+fn count_beacons(entries: &Vec<Entry>, y: i64, debug: bool) -> i64 {
+    let mut sum = 0;
+    let mut seen = HashSet::new();
+    for entry in entries {
+        if entry.beacon.1 == y {
+            if seen.contains(&entry.beacon.0) {
+                if debug {
+                    println!(
+                        "skipping beacon because {} has already been seen",
+                        entry.beacon.0
+                    );
+                }
+                continue;
+            }
+            seen.insert(entry.beacon.0);
+            if debug {
+                println!(
+                    "removing beacon at ({}, {})",
+                    entry.beacon.0, entry.beacon.1
+                );
+            }
+            sum = sum + 1;
+        }
+    }
+    sum
+}
+
+fn do_part1(entries: &Vec<Entry>, y: i64, debug: bool) {
+    let total = sum_ranges(&get_ranges(entries, y), debug);
+    let beacons = count_beacons(&entries, y, debug);
+    let ans = total - beacons;
+    println!("ans = {}", ans);
+}
+
+fn process(args: &Args) -> Result<()> {
+    let entries = read_input(&args.path, args.debug)?;
+    do_part1(&entries, args.y, args.debug);
     Ok(())
 }
 
 fn main() {
     let args = Args::parse();
-    match process(&args.path, args.part2, args.debug) {
+    match process(&args) {
         Ok(_) => (),
         Err(error) => panic!("{:?}", error),
     };
