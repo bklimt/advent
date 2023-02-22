@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -22,7 +22,6 @@ struct Valve {
     name: String,
     rate: i32,
     tunnels: Vec<String>,
-    open: bool,
 }
 
 impl Valve {
@@ -63,7 +62,6 @@ impl Valve {
             name: name.to_string(),
             rate,
             tunnels,
-            open: false,
         })
     }
 }
@@ -96,8 +94,143 @@ fn read_input(path: &str, debug: bool) -> Result<HashMap<String, Valve>> {
     Ok(valves)
 }
 
+fn build_adj(valves: &HashMap<String, Valve>, debug: bool) -> HashMap<(String, String), i32> {
+    let mut adj = HashMap::new();
+    for (_, v1) in valves.iter() {
+        for v2 in v1.tunnels.iter() {
+            adj.insert((v1.name.clone(), v2.clone()), 1);
+        }
+    }
+    for _ in valves.iter() {
+        for (start, _) in valves.iter() {
+            for (end, _) in valves.iter() {
+                if start == end {
+                    continue;
+                }
+                let p = (start.clone(), end.clone());
+                for (mid, _) in valves.iter() {
+                    if start == mid || mid == end {
+                        continue;
+                    }
+                    let p1 = (start.clone(), mid.clone());
+                    let p2 = (mid.clone(), end.clone());
+                    if let Some(d1) = adj.get(&p1) {
+                        if let Some(d2) = adj.get(&p2) {
+                            if let Some(d) = adj.get(&p) {
+                                if *d1 + *d2 < *d {
+                                    adj.insert(p.clone(), d1 + d2);
+                                }
+                            } else {
+                                adj.insert(p.clone(), d1 + d2);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (n, _) in valves.iter() {
+        adj.insert((n.clone(), n.clone()), 0);
+    }
+    if debug {
+        for ((start, end), d) in adj.iter() {
+            println!("{} -> {} = {}", start, end, d);
+        }
+    }
+    adj
+}
+
+fn dfs_search(
+    valves: &HashMap<String, Valve>,
+    adj: &HashMap<(String, String), i32>,
+    current: &String,
+    flow: i32,
+    time_remaining: i32,
+    open: &mut HashSet<String>,
+    debug: bool,
+) -> i32 {
+    if time_remaining < 0 {
+        panic!("invalid time_remaining: {}", 0);
+    }
+    if time_remaining == 0 {
+        if debug {
+            println!("skipping {} with time = 0", current);
+        }
+        return 0;
+    }
+
+    if debug {
+        println!("visiting {} with time = {}", current, time_remaining);
+    }
+
+    // The default is to do nothing.
+    let mut best = flow * time_remaining;
+
+    for (_, next) in valves.iter() {
+        if next.rate == 0 {
+            continue;
+        }
+        if open.contains(&next.name) {
+            continue;
+        }
+        let edge = (current.clone(), next.name.clone());
+        if let Some(dist) = adj.get(&edge) {
+            let cost = dist + 1;
+            let new_time_remaining = time_remaining - cost;
+            if new_time_remaining < 0 {
+                continue;
+            }
+
+            // It passed all the tests. Try it.
+            let addition = cost * flow;
+            let new_flow = flow + next.rate;
+
+            open.insert(next.name.clone());
+            best = best.max(
+                addition
+                    + dfs_search(
+                        valves,
+                        adj,
+                        &next.name,
+                        new_flow,
+                        new_time_remaining,
+                        open,
+                        debug,
+                    ),
+            );
+            open.remove(&next.name);
+        }
+    }
+
+    if debug {
+        println!("returning best flow = {}", best);
+    }
+    best
+}
+
 fn process(args: &Args) -> Result<()> {
-    let _valves = read_input(&args.path, args.debug)?;
+    println!("reading input...");
+    let valves = read_input(&args.path, args.debug)?;
+
+    println!("building adjacency matrix...");
+    let adj = build_adj(&valves, args.debug);
+
+    println!("doing depth-first search...");
+    let current = "AA".to_string();
+    let current_flow = 0;
+    let time = 30;
+    let mut open = HashSet::new();
+    let flow = dfs_search(
+        &valves,
+        &adj,
+        &current,
+        current_flow,
+        time,
+        &mut open,
+        args.debug,
+    );
+    println!("ans = {}", flow);
+
     Ok(())
 }
 
