@@ -12,6 +12,9 @@ struct Args {
 
     #[arg(long)]
     part2: bool,
+
+    #[arg(long)]
+    debug: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -189,13 +192,15 @@ fn drop_sand(m: &mut Map, part2: bool) -> bool {
     }
 }
 
-fn process(path: &str, part2: bool) -> Result<()> {
+fn process(path: &str, part2: bool, debug: bool) -> Result<()> {
     let mut m = read_input(path)?;
     let mut more = true;
     let mut ans = 0;
     while more {
-        // println!("");
-        // print_map(&m);
+        if debug {
+        println!("");
+        print_map(&m);
+        }
         more = drop_sand(&mut m, part2);
         if more {
             ans = ans + 1;
@@ -210,7 +215,7 @@ fn process(path: &str, part2: bool) -> Result<()> {
 
 fn main() {
     let args = Args::parse();
-    match process(&args.path, args.part2) {
+    match process(&args.path, args.part2, args.debug) {
         Ok(_) => (),
         Err(error) => panic!("{:?}", error),
     };
