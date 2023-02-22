@@ -195,6 +195,7 @@ fn find_beacon(ranges: &Vec<(i64, i64)>, max_x: i64, debug: bool) -> Option<i64>
             if debug {
                 println!("past max_x. giving up.");
             }
+            return None;
         }
     }
     if x <= max_x {
