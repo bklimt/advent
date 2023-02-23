@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -22,9 +23,10 @@ struct Args {
 
 #[derive(Debug)]
 struct Valve {
+    id: i64,
     name: String,
     rate: i32,
-    tunnels: Vec<String>,
+    tunnels: Vec<i64>,
 }
 
 impl Valve {
@@ -45,7 +47,7 @@ impl Valve {
             .ok_or_else(|| anyhow!("missing semicolon: {}", s))?;
         let (srate, s) = s.split_at(semi);
 
-        let tunnels = if s.starts_with("; tunnel leads to valve ") {
+        let stunnels = if s.starts_with("; tunnel leads to valve ") {
             let s = s.trim_start_matches("; tunnel leads to valve ");
             vec![s.to_string()]
         } else if s.starts_with("; tunnels lead to valves ") {
@@ -61,7 +63,18 @@ impl Valve {
             .parse::<i32>()
             .with_context(|| anyhow!("invalid number: {}", srate))?;
 
+        let id = i64::from_str_radix(name, 36)
+            .with_context(|| format!("unable to parse name: {}", name))?;
+
+        let mut tunnels = Vec::new();
+        for tunnel in stunnels {
+            let tid = i64::from_str_radix(tunnel.as_str(), 36)
+                .with_context(|| format!("unable to parse tunnel: {}", tunnel))?;
+            tunnels.push(tid);
+        }
+
         Ok(Valve {
+            id,
             name: name.to_string(),
             rate,
             tunnels,
@@ -69,7 +82,7 @@ impl Valve {
     }
 }
 
-fn read_input(path: &str, debug: bool) -> Result<HashMap<String, Valve>> {
+fn read_input(path: &str, debug: bool) -> Result<HashMap<i64, Valve>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
     let mut useful = 0;
@@ -96,7 +109,7 @@ fn read_input(path: &str, debug: bool) -> Result<HashMap<String, Valve>> {
         if valve.rate > 0 {
             useful = useful + 1;
         }
-        valves.insert(valve.name.clone(), valve);
+        valves.insert(valve.id, valve);
     }
     if debug {
         println!("{} useful valves", useful);
@@ -104,11 +117,11 @@ fn read_input(path: &str, debug: bool) -> Result<HashMap<String, Valve>> {
     Ok(valves)
 }
 
-fn build_adj(valves: &HashMap<String, Valve>, debug: bool) -> HashMap<(String, String), i32> {
+fn build_adj(valves: &HashMap<i64, Valve>, debug: bool) -> HashMap<(i64, i64), i32> {
     let mut adj = HashMap::new();
     for (_, v1) in valves.iter() {
         for v2 in v1.tunnels.iter() {
-            adj.insert((v1.name.clone(), v2.clone()), 1);
+            adj.insert((v1.id, *v2), 1);
         }
     }
     for (mid, _) in valves.iter() {
@@ -116,13 +129,13 @@ fn build_adj(valves: &HashMap<String, Valve>, debug: bool) -> HashMap<(String, S
             if start == mid {
                 continue;
             }
-            let p1 = (start.clone(), mid.clone());
+            let p1 = (*start, *mid);
             for (end, _) in valves.iter() {
                 if start == end || mid == end {
                     continue;
                 }
-                let p = (start.clone(), end.clone());
-                let p2 = (mid.clone(), end.clone());
+                let p = (*start, *end);
+                let p2 = (*mid, *end);
                 if let Some(d1) = adj.get(&p1) {
                     if let Some(d2) = adj.get(&p2) {
                         if let Some(d) = adj.get(&p) {
@@ -149,7 +162,7 @@ fn build_adj(valves: &HashMap<String, Valve>, debug: bool) -> HashMap<(String, S
 }
 
 struct Path {
-    path: Vec<String>,
+    path: Vec<i64>,
     time: i32,
     flow: i32,
     total: i32,
@@ -159,22 +172,34 @@ impl Path {
     fn score(&self, time: i32) -> i32 {
         self.total + (self.flow * (time - self.time))
     }
+
+    fn string_from_id(id: &i64) -> String {
+        format!(
+            "{}{}",
+            char::from_digit((id / 36) as u32, 36).unwrap(),
+            char::from_digit((id % 36) as u32, 36).unwrap(),
+        )
+    }
+
+    fn to_string(&self) -> String {
+        self.path.iter().map(Path::string_from_id).join(" -> ")
+    }
 }
 
 fn extend(
     path: &Path,
     next: &Valve,
     max_time: i32,
-    seen: &HashSet<String>,
-    adj: &HashMap<(String, String), i32>,
+    seen: &HashSet<i64>,
+    adj: &HashMap<(i64, i64), i32>,
 ) -> Option<Path> {
     return if next.rate == 0 {
         None
-    } else if seen.contains(&next.name) {
+    } else if seen.contains(&next.id) {
         None
     } else {
         let current = path.path.last().unwrap();
-        let edge = (current.clone(), next.name.clone());
+        let edge = (*current, next.id);
         if let Some(dist) = adj.get(&edge) {
             let cost = dist + 1;
             let new_time = path.time + cost;
@@ -186,7 +211,7 @@ fn extend(
                 let new_flow = path.flow + next.rate;
 
                 let mut new_path = path.path.clone();
-                new_path.push(next.name.clone());
+                new_path.push(next.id);
 
                 Some(Path {
                     path: new_path,
@@ -202,18 +227,19 @@ fn extend(
 }
 
 fn bfs_search1(
-    valves: &HashMap<String, Valve>,
-    adj: &HashMap<(String, String), i32>,
+    valves: &HashMap<i64, Valve>,
+    adj: &HashMap<(i64, i64), i32>,
     max_time: i32,
     debug: bool,
-) -> i32 {
+) -> Result<i32> {
     struct Candidate {
         path: Path,
-        seen: HashSet<String>,
+        seen: HashSet<i64>,
     }
+    let aa = i64::from_str_radix("AA", 36).with_context(|| "unable to parse AA")?;
     let empty = Candidate {
         path: Path {
-            path: vec!["AA".to_string()],
+            path: vec![aa],
             time: 0,
             flow: 0,
             total: 0,
@@ -232,7 +258,7 @@ fn bfs_search1(
                 "{} {} Considering {} [time={}, flow={}, total={}]",
                 total,
                 candidates.len(),
-                candidate.path.path.join(" -> "),
+                candidate.path.to_string(),
                 candidate.path.time,
                 candidate.path.flow,
                 candidate.path.total,
@@ -245,7 +271,7 @@ fn bfs_search1(
                 best = best.max(new_path.score(max_time));
 
                 let mut new_seen = candidate.seen.clone();
-                new_seen.insert(next.name.clone());
+                new_seen.insert(next.id);
 
                 total = total + 1;
                 candidates.push_back(Candidate {
@@ -255,29 +281,30 @@ fn bfs_search1(
             }
         }
     }
-    best
+    Ok(best)
 }
 
 fn bfs_search2(
-    valves: &HashMap<String, Valve>,
-    adj: &HashMap<(String, String), i32>,
+    valves: &HashMap<i64, Valve>,
+    adj: &HashMap<(i64, i64), i32>,
     max_time: i32,
     debug: bool,
-) -> i32 {
+) -> Result<i32> {
     struct Candidate {
         human: Path,
         elephant: Path,
-        seen: HashSet<String>,
+        seen: HashSet<i64>,
     }
+    let aa = i64::from_str_radix("AA", 36).with_context(|| "unable to parse AA")?;
     let empty = Candidate {
         human: Path {
-            path: vec!["AA".to_string()],
+            path: vec![aa],
             time: 0,
             flow: 0,
             total: 0,
         },
         elephant: Path {
-            path: vec!["AA".to_string()],
+            path: vec![aa],
             time: 0,
             flow: 0,
             total: 0,
@@ -293,28 +320,28 @@ fn bfs_search2(
     while let Some(candidate) = candidates.pop_front() {
         if debug {
             println!(
-                    "{} {} Considering hum {} [time={}, flow={}, total={}] \n                                                                            ele {} [time={}, flow={}, total={}]",
-                    total,
-                    candidates.len(),
-                    candidate.human.path.join(" -> "),
-                    candidate.human.time,
-                    candidate.human.flow,
-                    candidate.human.total,
-                    candidate.elephant.path.join(" -> "),
-                    candidate.elephant.time,
-                    candidate.elephant.flow,
-                    candidate.elephant.total,
-                );
+                "{} {} Considering hum {} [time={}, flow={}, total={}] \n                                                                            ele {} [time={}, flow={}, total={}]",
+                total,
+                candidates.len(),
+                candidate.human.to_string(),
+                candidate.human.time,
+                candidate.human.flow,
+                candidate.human.total,
+                candidate.elephant.to_string(),
+                candidate.elephant.time,
+                candidate.elephant.flow,
+                candidate.elephant.total,
+            );
         }
 
-        let human_path = candidate.human.path.join(" -> ");
-        let elephant_path = candidate.elephant.path.join(" -> ");
+        let human_path = candidate.human.to_string();
+        let elephant_path = candidate.elephant.to_string();
 
         // Consider all the next steps.
         for (_, next) in valves.iter() {
             if let Some(new_human) = extend(&candidate.human, next, max_time, &candidate.seen, adj)
             {
-                let new_human_path = new_human.path.join(" -> ");
+                let new_human_path = new_human.to_string();
                 if elephant_path < new_human_path {
                     if debug {
                         println!("skipping because {} < {}", elephant_path, new_human_path);
@@ -323,7 +350,7 @@ fn bfs_search2(
                     best = best.max(new_human.score(max_time) + candidate.elephant.score(max_time));
 
                     let mut new_seen = candidate.seen.clone();
-                    new_seen.insert(next.name.clone());
+                    new_seen.insert(next.id);
 
                     let new_elephant = Path {
                         path: candidate.elephant.path.clone(),
@@ -344,7 +371,7 @@ fn bfs_search2(
             if let Some(new_elephant) =
                 extend(&candidate.elephant, next, max_time, &candidate.seen, adj)
             {
-                let new_elephant_path = new_elephant.path.join(" -> ");
+                let new_elephant_path = new_elephant.to_string();
                 if new_elephant_path < human_path {
                     if debug {
                         println!("skipping because {} < {}", new_elephant_path, human_path);
@@ -353,7 +380,7 @@ fn bfs_search2(
                     best = best.max(new_elephant.score(max_time) + candidate.human.score(max_time));
 
                     let mut new_seen = candidate.seen.clone();
-                    new_seen.insert(next.name.clone());
+                    new_seen.insert(next.id);
 
                     let new_human = Path {
                         path: candidate.human.path.clone(),
@@ -371,7 +398,7 @@ fn bfs_search2(
             }
         }
     }
-    best
+    Ok(best)
 }
 
 fn process(args: &Args) -> Result<()> {
@@ -383,9 +410,9 @@ fn process(args: &Args) -> Result<()> {
 
     println!("searching...");
     let ans = if args.part2 {
-        bfs_search2(&valves, &adj, args.max_time, args.debug)
+        bfs_search2(&valves, &adj, args.max_time, args.debug)?
     } else {
-        bfs_search1(&valves, &adj, args.max_time, args.debug)
+        bfs_search1(&valves, &adj, args.max_time, args.debug)?
     };
     println!("ans = {}", ans);
 
