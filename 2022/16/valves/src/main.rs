@@ -190,7 +190,7 @@ fn extend(
     path: &Path,
     next: &Valve,
     max_time: i32,
-    seen: &HashSet<i64>,
+    seen: &Vec<i64>,
     adj: &HashMap<(i64, i64), i32>,
 ) -> Option<Path> {
     return if next.rate == 0 {
@@ -234,7 +234,7 @@ fn bfs_search1(
 ) -> Result<i32> {
     struct Candidate {
         path: Path,
-        seen: HashSet<i64>,
+        seen: Vec<i64>,
     }
     let aa = i64::from_str_radix("AA", 36).with_context(|| "unable to parse AA")?;
     let empty = Candidate {
@@ -244,7 +244,7 @@ fn bfs_search1(
             flow: 0,
             total: 0,
         },
-        seen: HashSet::new(),
+        seen: Vec::new(),
     };
     let mut candidates = VecDeque::new();
     candidates.push_back(empty);
@@ -271,7 +271,7 @@ fn bfs_search1(
                 best = best.max(new_path.score(max_time));
 
                 let mut new_seen = candidate.seen.clone();
-                new_seen.insert(next.id);
+                new_seen.push(next.id);
 
                 total = total + 1;
                 candidates.push_back(Candidate {
@@ -293,7 +293,7 @@ fn bfs_search2(
     struct Candidate {
         human: Path,
         elephant: Path,
-        seen: HashSet<i64>,
+        seen: Vec<i64>,
     }
     let aa = i64::from_str_radix("AA", 36).with_context(|| "unable to parse AA")?;
     let empty = Candidate {
@@ -309,7 +309,7 @@ fn bfs_search2(
             flow: 0,
             total: 0,
         },
-        seen: HashSet::new(),
+        seen: Vec::new(),
     };
     let mut candidates = VecDeque::new();
     candidates.push_back(empty);
@@ -350,7 +350,7 @@ fn bfs_search2(
                     best = best.max(new_human.score(max_time) + candidate.elephant.score(max_time));
 
                     let mut new_seen = candidate.seen.clone();
-                    new_seen.insert(next.id);
+                    new_seen.push(next.id);
 
                     let new_elephant = Path {
                         path: candidate.elephant.path.clone(),
@@ -380,7 +380,7 @@ fn bfs_search2(
                     best = best.max(new_elephant.score(max_time) + candidate.human.score(max_time));
 
                     let mut new_seen = candidate.seen.clone();
-                    new_seen.insert(next.id);
+                    new_seen.push(next.id);
 
                     let new_human = Path {
                         path: candidate.human.path.clone(),
