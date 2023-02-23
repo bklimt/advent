@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -208,6 +209,89 @@ fn dfs_search(
     best
 }
 
+fn bfs_search(
+    valves: &HashMap<String, Valve>,
+    adj: &HashMap<(String, String), i32>,
+    debug: bool,
+) -> i32 {
+    struct Candidate {
+        path: Vec<String>,
+        time: i32,
+        flow: i32,
+        total: i32,
+    }
+    let empty = Candidate {
+        path: vec!["AA".to_string()],
+        time: 0,
+        flow: 0,
+        total: 0,
+    };
+    let mut candidates = Vec::new();
+    candidates.push(empty);
+    let mut more = true;
+
+    let mut best = 0;
+
+    while more {
+        more = false;
+
+        // Try extending any current candidate.
+        let mut new_candidates = Vec::new();
+        for candidate in candidates.iter() {
+            if debug {
+                println!(
+                    "Considering {} [time={}, flow={}, total={}]",
+                    candidate.path.join(" -> "),
+                    candidate.time,
+                    candidate.flow,
+                    candidate.total,
+                );
+            }
+
+            // Consider all the next steps.
+            for (_, next) in valves.iter() {
+                if next.rate == 0 {
+                    continue;
+                }
+                if candidate.path[1..].contains(&next.name) {
+                    continue;
+                }
+                let current = candidate.path.last().unwrap();
+                let edge = (current.clone(), next.name.clone());
+                if let Some(dist) = adj.get(&edge) {
+                    let cost = dist + 1;
+                    let new_time = cost + candidate.time;
+                    if new_time >= 30 {
+                        continue;
+                    }
+
+                    // It passed all the tests. Try it.
+                    let addition = cost * candidate.flow;
+                    let new_total = candidate.total + addition;
+                    let new_flow = candidate.flow + next.rate;
+
+                    let mut new_path = candidate.path.clone();
+                    new_path.push(next.name.clone());
+
+                    new_candidates.push(Candidate {
+                        path: new_path,
+                        time: new_time,
+                        flow: new_flow,
+                        total: new_total,
+                    });
+
+                    let score = new_total + (new_flow * (30 - new_time));
+                    best = best.max(score);
+
+                    more = true;
+                }
+            }
+        }
+        candidates = new_candidates;
+    }
+    best
+}
+
 fn process(args: &Args) -> Result<()> {
     println!("reading input...");
     let valves = read_input(&args.path, args.debug)?;
@@ -215,6 +299,7 @@ fn process(args: &Args) -> Result<()> {
     println!("building adjacency matrix...");
     let adj = build_adj(&valves, args.debug);
 
+    /*
     println!("doing depth-first search...");
     let current = "AA".to_string();
     let current_flow = 0;
@@ -229,7 +314,10 @@ fn process(args: &Args) -> Result<()> {
         &mut open,
         args.debug,
     );
-    println!("ans = {}", flow);
+    */
+
+    let ans = bfs_search(&valves, &adj, args.debug);
+    println!("ans = {}", ans);
 
     Ok(())
 }
