@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -12,6 +12,9 @@ struct Args {
 
     #[arg(long)]
     part2: bool,
+
+    #[arg(long)]
+    max_time: i32,
 
     #[arg(long)]
     debug: bool,
@@ -69,6 +72,7 @@ impl Valve {
 fn read_input(path: &str, debug: bool) -> Result<HashMap<String, Valve>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
+    let mut useful = 0;
     let mut valves = HashMap::new();
     loop {
         let mut line = String::new();
@@ -89,7 +93,13 @@ fn read_input(path: &str, debug: bool) -> Result<HashMap<String, Valve>> {
         if debug {
             println!("valve: {:?}", valve);
         }
+        if valve.rate > 0 {
+            useful = useful + 1;
+        }
         valves.insert(valve.name.clone(), valve);
+    }
+    if debug {
+        println!("{} useful valves", useful);
     }
     Ok(valves)
 }
@@ -101,28 +111,26 @@ fn build_adj(valves: &HashMap<String, Valve>, debug: bool) -> HashMap<(String, S
             adj.insert((v1.name.clone(), v2.clone()), 1);
         }
     }
-    for _ in valves.iter() {
+    for (mid, _) in valves.iter() {
         for (start, _) in valves.iter() {
+            if start == mid {
+                continue;
+            }
+            let p1 = (start.clone(), mid.clone());
             for (end, _) in valves.iter() {
-                if start == end {
+                if start == end || mid == end {
                     continue;
                 }
                 let p = (start.clone(), end.clone());
-                for (mid, _) in valves.iter() {
-                    if start == mid || mid == end {
-                        continue;
-                    }
-                    let p1 = (start.clone(), mid.clone());
-                    let p2 = (mid.clone(), end.clone());
-                    if let Some(d1) = adj.get(&p1) {
-                        if let Some(d2) = adj.get(&p2) {
-                            if let Some(d) = adj.get(&p) {
-                                if *d1 + *d2 < *d {
-                                    adj.insert(p.clone(), d1 + d2);
-                                }
-                            } else {
+                let p2 = (mid.clone(), end.clone());
+                if let Some(d1) = adj.get(&p1) {
+                    if let Some(d2) = adj.get(&p2) {
+                        if let Some(d) = adj.get(&p) {
+                            if *d1 + *d2 < *d {
                                 adj.insert(p.clone(), d1 + d2);
                             }
+                        } else {
+                            adj.insert(p.clone(), d1 + d2);
                         }
                     }
                 }
@@ -212,47 +220,40 @@ fn bfs_search1(
         },
         seen: HashSet::new(),
     };
-    let mut candidates = Vec::new();
-    candidates.push(empty);
-    let mut more = true;
+    let mut candidates = VecDeque::new();
+    candidates.push_back(empty);
 
     let mut best = 0;
+    let mut total = 1;
 
-    while more {
-        more = false;
+    while let Some(candidate) = candidates.pop_front() {
+        if debug {
+            println!(
+                "{} {} Considering {} [time={}, flow={}, total={}]",
+                total,
+                candidates.len(),
+                candidate.path.path.join(" -> "),
+                candidate.path.time,
+                candidate.path.flow,
+                candidate.path.total,
+            );
+        }
 
-        // Try extending any current candidate.
-        let mut new_candidates = Vec::new();
-        for candidate in candidates.iter() {
-            if debug {
-                println!(
-                    "Considering {} [time={}, flow={}, total={}]",
-                    candidate.path.path.join(" -> "),
-                    candidate.path.time,
-                    candidate.path.flow,
-                    candidate.path.total,
-                );
-            }
+        // Consider all the next steps.
+        for (_, next) in valves.iter() {
+            if let Some(new_path) = extend(&candidate.path, next, max_time, &candidate.seen, adj) {
+                best = best.max(new_path.score(max_time));
 
-            // Consider all the next steps.
-            for (_, next) in valves.iter() {
-                if let Some(new_path) =
-                    extend(&candidate.path, next, max_time, &candidate.seen, adj)
-                {
-                    best = best.max(new_path.score(max_time));
-                    more = true;
+                let mut new_seen = candidate.seen.clone();
+                new_seen.insert(next.name.clone());
 
-                    let mut new_seen = candidate.seen.clone();
-                    new_seen.insert(next.name.clone());
-
-                    new_candidates.push(Candidate {
-                        path: new_path,
-                        seen: new_seen,
-                    });
-                }
+                total = total + 1;
+                candidates.push_back(Candidate {
+                    path: new_path,
+                    seen: new_seen,
+                });
             }
         }
-        candidates = new_candidates;
     }
     best
 }
@@ -283,42 +284,43 @@ fn bfs_search2(
         },
         seen: HashSet::new(),
     };
-    let mut candidates = Vec::new();
-    candidates.push(empty);
-    let mut more = true;
+    let mut candidates = VecDeque::new();
+    candidates.push_back(empty);
 
     let mut best = 0;
+    let mut total = 1;
 
-    while more {
-        more = false;
-
-        // Try extending any current candidate.
-        let mut new_candidates = Vec::new();
-        for candidate in candidates.iter() {
-            if debug {
-                println!(
-                    "Considering hum {} [time={}, flow={}, total={}]",
+    while let Some(candidate) = candidates.pop_front() {
+        if debug {
+            println!(
+                    "{} {} Considering hum {} [time={}, flow={}, total={}] \n                                                                            ele {} [time={}, flow={}, total={}]",
+                    total,
+                    candidates.len(),
                     candidate.human.path.join(" -> "),
                     candidate.human.time,
                     candidate.human.flow,
                     candidate.human.total,
-                );
-                println!(
-                    "Considering ele {} [time={}, flow={}, total={}]",
                     candidate.elephant.path.join(" -> "),
                     candidate.elephant.time,
                     candidate.elephant.flow,
                     candidate.elephant.total,
                 );
-            }
+        }
 
-            // Consider all the next steps.
-            for (_, next) in valves.iter() {
-                if let Some(new_human) =
-                    extend(&candidate.human, next, max_time, &candidate.seen, adj)
-                {
+        let human_path = candidate.human.path.join(" -> ");
+        let elephant_path = candidate.elephant.path.join(" -> ");
+
+        // Consider all the next steps.
+        for (_, next) in valves.iter() {
+            if let Some(new_human) = extend(&candidate.human, next, max_time, &candidate.seen, adj)
+            {
+                let new_human_path = new_human.path.join(" -> ");
+                if elephant_path < new_human_path {
+                    if debug {
+                        println!("skipping because {} < {}", elephant_path, new_human_path);
+                    }
+                } else {
                     best = best.max(new_human.score(max_time) + candidate.elephant.score(max_time));
-                    more = true;
 
                     let mut new_seen = candidate.seen.clone();
                     new_seen.insert(next.name.clone());
@@ -330,17 +332,25 @@ fn bfs_search2(
                         total: candidate.elephant.total,
                     };
 
-                    new_candidates.push(Candidate {
+                    total = total + 1;
+                    candidates.push_back(Candidate {
                         human: new_human,
                         elephant: new_elephant,
                         seen: new_seen,
                     });
                 }
-                if let Some(new_elephant) =
-                    extend(&candidate.elephant, next, max_time, &candidate.seen, adj)
-                {
+            }
+
+            if let Some(new_elephant) =
+                extend(&candidate.elephant, next, max_time, &candidate.seen, adj)
+            {
+                let new_elephant_path = new_elephant.path.join(" -> ");
+                if new_elephant_path < human_path {
+                    if debug {
+                        println!("skipping because {} < {}", new_elephant_path, human_path);
+                    }
+                } else {
                     best = best.max(new_elephant.score(max_time) + candidate.human.score(max_time));
-                    more = true;
 
                     let mut new_seen = candidate.seen.clone();
                     new_seen.insert(next.name.clone());
@@ -352,7 +362,7 @@ fn bfs_search2(
                         total: candidate.human.total,
                     };
 
-                    new_candidates.push(Candidate {
+                    candidates.push_back(Candidate {
                         human: new_human,
                         elephant: new_elephant,
                         seen: new_seen,
@@ -360,7 +370,6 @@ fn bfs_search2(
                 }
             }
         }
-        candidates = new_candidates;
     }
     best
 }
@@ -372,10 +381,11 @@ fn process(args: &Args) -> Result<()> {
     println!("building adjacency matrix...");
     let adj = build_adj(&valves, args.debug);
 
+    println!("searching...");
     let ans = if args.part2 {
-        bfs_search2(&valves, &adj, 26, args.debug)
+        bfs_search2(&valves, &adj, args.max_time, args.debug)
     } else {
-        bfs_search1(&valves, &adj, 30, args.debug)
+        bfs_search1(&valves, &adj, args.max_time, args.debug)
     };
     println!("ans = {}", ans);
 
