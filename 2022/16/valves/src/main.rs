@@ -77,6 +77,20 @@ impl Valve {
     }
 }
 
+fn get_useful_valves(valves: &HashMap<i64, Valve>) -> Vec<Valve> {
+    let mut useful = Vec::new();
+    for (_, valve) in valves.iter() {
+        if valve.rate > 0 {
+            useful.push(Valve {
+                id: valve.id,
+                rate: valve.rate,
+                tunnels: valve.tunnels.clone(),
+            });
+        }
+    }
+    useful
+}
+
 fn read_input(path: &str, debug: bool) -> Result<HashMap<i64, Valve>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
@@ -254,7 +268,7 @@ fn extend(
 }
 
 fn bfs_search1(
-    valves: &HashMap<i64, Valve>,
+    valves: &Vec<Valve>,
     adj: &HashMap<(i64, i64), i32>,
     max_time: i32,
     debug: bool,
@@ -293,7 +307,7 @@ fn bfs_search1(
         }
 
         // Consider all the next steps.
-        for (_, next) in valves.iter() {
+        for next in valves.iter() {
             if let Some(new_path) = extend(&candidate.path, next, max_time, &candidate.seen, adj) {
                 best = best.max(new_path.score(max_time));
 
@@ -312,7 +326,7 @@ fn bfs_search1(
 }
 
 fn bfs_search2(
-    valves: &HashMap<i64, Valve>,
+    valves: &Vec<Valve>,
     adj: &HashMap<(i64, i64), i32>,
     max_time: i32,
     debug: bool,
@@ -367,7 +381,7 @@ fn bfs_search2(
         }
 
         // Consider all the next steps.
-        for (_, next) in valves.iter() {
+        for next in valves.iter() {
             if let Some(new_human) = extend(&candidate.human, next, max_time, &candidate.seen, adj)
             {
                 if candidate.elephant >= new_human {
@@ -427,11 +441,13 @@ fn process(args: &Args) -> Result<()> {
     println!("building adjacency matrix...");
     let adj = build_adj(&valves, args.debug);
 
+    let useful = get_useful_valves(&valves);
+
     println!("searching...");
     let ans = if args.part2 {
-        bfs_search2(&valves, &adj, args.max_time, args.debug)?
+        bfs_search2(&useful, &adj, args.max_time, args.debug)?
     } else {
-        bfs_search1(&valves, &adj, args.max_time, args.debug)?
+        bfs_search1(&useful, &adj, args.max_time, args.debug)?
     };
     println!("ans = {}", ans);
 
