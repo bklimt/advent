@@ -1,9 +1,11 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use itertools::Itertools;
+use priority_queue::PriorityQueue;
 use std::cmp::Ordering;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::fs::File;
+use std::hash::Hash;
 use std::io::{BufRead, BufReader};
 
 #[derive(Parser, Debug)]
@@ -172,16 +174,9 @@ fn build_adj(valves: &HashMap<i64, Valve>, debug: bool) -> HashMap<(i64, i64), i
 
 struct Path {
     path: Vec<i64>,
-    time: i32,
-    flow: i32,
-    total: i32,
 }
 
 impl Path {
-    fn score(&self, time: i32) -> i32 {
-        self.total + (self.flow * (time - self.time))
-    }
-
     fn string_from_id(id: &i64) -> String {
         format!(
             "{}{}",
@@ -215,6 +210,12 @@ impl PartialEq for Path {
 
 impl Eq for Path {}
 
+impl Hash for Path {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state)
+    }
+}
+
 fn compare(left: &Path, right: &Path) -> Ordering {
     let len = left.path.len().min(right.path.len());
     for i in 0..len {
@@ -227,19 +228,33 @@ fn compare(left: &Path, right: &Path) -> Ordering {
     return left.path.len().cmp(&right.path.len());
 }
 
+#[derive(PartialEq, Eq, Hash)]
+struct ScoredPath {
+    path: Path,
+    time: i32,
+    flow: i32,
+    total: i32,
+}
+
+impl ScoredPath {
+    fn score(&self, time: i32) -> i32 {
+        self.total + (self.flow * (time - self.time))
+    }
+}
+
 fn extend(
-    path: &Path,
+    path: &ScoredPath,
     next: &Valve,
     max_time: i32,
     seen: &Vec<i64>,
     adj: &HashMap<(i64, i64), i32>,
-) -> Option<Path> {
+) -> Option<ScoredPath> {
     return if next.rate == 0 {
         None
     } else if seen.contains(&next.id) {
         None
     } else {
-        let current = path.path.last().unwrap();
+        let current = path.path.path.last().unwrap();
         let edge = (*current, next.id);
         if let Some(dist) = adj.get(&edge) {
             let cost = dist + 1;
@@ -251,10 +266,12 @@ fn extend(
                 let new_total = path.total + (cost * path.flow);
                 let new_flow = path.flow + next.rate;
 
-                let mut new_path = path.path.clone();
-                new_path.push(next.id);
+                let mut new_path = Path {
+                    path: path.path.path.clone(),
+                };
+                new_path.path.push(next.id);
 
-                Some(Path {
+                Some(ScoredPath {
                     path: new_path,
                     time: new_time,
                     flow: new_flow,
@@ -273,33 +290,37 @@ fn bfs_search1(
     max_time: i32,
     debug: bool,
 ) -> Result<i32> {
+    let mut best_scores = HashMap::new();
+
+    #[derive(PartialEq, Eq, Hash)]
     struct Candidate {
-        path: Path,
+        path: ScoredPath,
         seen: Vec<i64>,
     }
     let aa = i64::from_str_radix("AA", 36).with_context(|| "unable to parse AA")?;
     let empty = Candidate {
-        path: Path {
-            path: vec![aa],
+        path: ScoredPath {
+            path: Path { path: vec![aa] },
             time: 0,
             flow: 0,
             total: 0,
         },
         seen: Vec::new(),
     };
-    let mut candidates = VecDeque::new();
-    candidates.push_back(empty);
+    let mut candidates = PriorityQueue::new();
+    candidates.push(empty, 0);
 
     let mut best = 0;
     let mut total = 1;
 
-    while let Some(candidate) = candidates.pop_front() {
+    while let Some(candidate_score) = candidates.pop() {
+        let (candidate, _) = candidate_score;
         if debug {
             println!(
                 "{} {} Considering {} [time={}, flow={}, total={}]",
                 total,
                 candidates.len(),
-                candidate.path.to_string(),
+                candidate.path.path.to_string(),
                 candidate.path.time,
                 candidate.path.flow,
                 candidate.path.total,
@@ -309,16 +330,33 @@ fn bfs_search1(
         // Consider all the next steps.
         for next in valves.iter() {
             if let Some(new_path) = extend(&candidate.path, next, max_time, &candidate.seen, adj) {
-                best = best.max(new_path.score(max_time));
+                let score = new_path.score(max_time);
+                best = best.max(score);
 
                 let mut new_seen = candidate.seen.clone();
                 new_seen.push(next.id);
 
+                let pos = next.id;
+
                 total = total + 1;
-                candidates.push_back(Candidate {
+                let new_candidate = Candidate {
                     path: new_path,
                     seen: new_seen,
-                });
+                };
+
+                let is_best =
+                    if let Some(best_score) = best_scores.get(&(pos, new_candidate.path.time)) {
+                        score >= *best_score
+                    } else {
+                        true
+                    };
+
+                if is_best {
+                    for t in new_candidate.path.time..max_time {
+                        best_scores.insert((pos, t), score);
+                    }
+                    candidates.push(new_candidate, score);
+                }
             }
         }
     }
@@ -331,40 +369,44 @@ fn bfs_search2(
     max_time: i32,
     debug: bool,
 ) -> Result<i32> {
+    let mut best_scores = HashMap::new();
+
+    #[derive(PartialEq, Eq, Hash)]
     struct Candidate {
-        human: Path,
-        elephant: Path,
+        human: ScoredPath,
+        elephant: ScoredPath,
         seen: Vec<i64>,
     }
     let aa = i64::from_str_radix("AA", 36).with_context(|| "unable to parse AA")?;
     let empty = Candidate {
-        human: Path {
-            path: vec![aa],
+        human: ScoredPath {
+            path: Path { path: vec![aa] },
             time: 0,
             flow: 0,
             total: 0,
         },
-        elephant: Path {
-            path: vec![aa],
+        elephant: ScoredPath {
+            path: Path { path: vec![aa] },
             time: 0,
             flow: 0,
             total: 0,
         },
         seen: Vec::new(),
     };
-    let mut candidates = VecDeque::new();
-    candidates.push_back(empty);
+    let mut candidates = PriorityQueue::new();
+    candidates.push(empty, 0);
 
     let mut best = 0;
     let mut total = 1;
 
-    while let Some(candidate) = candidates.pop_front() {
+    while let Some(candidate_score) = candidates.pop() {
+        let (candidate, _) = candidate_score;
         if debug {
             println!(
                 "{} {} hum {} [time={}, flow={}, total={}]",
                 total,
                 candidates.len(),
-                candidate.human.to_string(),
+                candidate.human.path.to_string(),
                 candidate.human.time,
                 candidate.human.flow,
                 candidate.human.total,
@@ -373,7 +415,7 @@ fn bfs_search2(
                 "{} {} ele {} [time={}, flow={}, total={}]",
                 total,
                 candidates.len(),
-                candidate.elephant.to_string(),
+                candidate.elephant.path.to_string(),
                 candidate.elephant.time,
                 candidate.elephant.flow,
                 candidate.elephant.total,
@@ -382,51 +424,94 @@ fn bfs_search2(
 
         // Consider all the next steps.
         for next in valves.iter() {
+            let mut new_candidates = Vec::new();
+
             if let Some(new_human) = extend(&candidate.human, next, max_time, &candidate.seen, adj)
             {
-                if candidate.elephant >= new_human {
-                    best = best.max(new_human.score(max_time) + candidate.elephant.score(max_time));
+                if candidate.elephant.path >= new_human.path {
+                    let score = new_human.score(max_time) + candidate.elephant.score(max_time);
+                    best = best.max(score);
 
                     let mut new_seen = candidate.seen.clone();
                     new_seen.push(next.id);
 
-                    let new_elephant = Path {
-                        path: candidate.elephant.path.clone(),
+                    let new_elephant = ScoredPath {
+                        path: Path {
+                            path: candidate.elephant.path.path.clone(),
+                        },
                         time: candidate.elephant.time,
                         flow: candidate.elephant.flow,
                         total: candidate.elephant.total,
                     };
 
-                    total = total + 1;
-                    candidates.push_back(Candidate {
+                    let new_candidate = Candidate {
                         human: new_human,
                         elephant: new_elephant,
                         seen: new_seen,
-                    });
+                    };
+                    new_candidates.push(new_candidate);
                 }
             }
 
             if let Some(new_elephant) =
                 extend(&candidate.elephant, next, max_time, &candidate.seen, adj)
             {
-                if new_elephant >= candidate.human {
-                    best = best.max(new_elephant.score(max_time) + candidate.human.score(max_time));
-
+                if new_elephant.path >= candidate.human.path {
                     let mut new_seen = candidate.seen.clone();
                     new_seen.push(next.id);
 
-                    let new_human = Path {
-                        path: candidate.human.path.clone(),
+                    let new_human = ScoredPath {
+                        path: Path {
+                            path: candidate.human.path.path.clone(),
+                        },
                         time: candidate.human.time,
                         flow: candidate.human.flow,
                         total: candidate.human.total,
                     };
 
-                    candidates.push_back(Candidate {
+                    let new_candidate = Candidate {
                         human: new_human,
                         elephant: new_elephant,
                         seen: new_seen,
-                    });
+                    };
+
+                    new_candidates.push(new_candidate);
+                }
+            }
+
+            for new_candidate in new_candidates {
+                total = total + 1;
+
+                let score =
+                    new_candidate.elephant.score(max_time) + new_candidate.human.score(max_time);
+                best = best.max(score);
+
+                let mut was_best = false;
+
+                for t_human in new_candidate.human.time..max_time {
+                    for t_elephant in new_candidate.elephant.time..max_time {
+                        let pos = (
+                            *new_candidate.human.path.path.last().unwrap(),
+                            *new_candidate.elephant.path.path.last().unwrap(),
+                            t_human,
+                            t_elephant,
+                        );
+
+                        let is_best = if let Some(best_score) = best_scores.get(&pos) {
+                            score >= *best_score
+                        } else {
+                            true
+                        };
+
+                        if is_best {
+                            was_best = true;
+                            best_scores.insert(pos.clone(), score);
+                        }
+                    }
+                }
+
+                if was_best {
+                    candidates.push(new_candidate, score);
                 }
             }
         }
