@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::cmp::Ordering;
+use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -24,7 +25,6 @@ struct Args {
 #[derive(Debug)]
 struct Valve {
     id: i64,
-    name: String,
     rate: i32,
     tunnels: Vec<i64>,
 }
@@ -73,12 +73,7 @@ impl Valve {
             tunnels.push(tid);
         }
 
-        Ok(Valve {
-            id,
-            name: name.to_string(),
-            rate,
-            tunnels,
-        })
+        Ok(Valve { id, rate, tunnels })
     }
 }
 
@@ -184,6 +179,38 @@ impl Path {
     fn to_string(&self) -> String {
         self.path.iter().map(Path::string_from_id).join(" -> ")
     }
+}
+
+impl PartialOrd for Path {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Path {
+    fn cmp(&self, other: &Self) -> Ordering {
+        compare(self, other)
+    }
+}
+
+impl PartialEq for Path {
+    fn eq(&self, other: &Self) -> bool {
+        compare(self, other) == Ordering::Equal
+    }
+}
+
+impl Eq for Path {}
+
+fn compare(left: &Path, right: &Path) -> Ordering {
+    let len = left.path.len().min(right.path.len());
+    for i in 0..len {
+        if left.path[i] < right.path[i] {
+            return Ordering::Less;
+        } else if left.path[i] > right.path[i] {
+            return Ordering::Greater;
+        }
+    }
+    return left.path.len().cmp(&right.path.len());
 }
 
 fn extend(
@@ -320,13 +347,18 @@ fn bfs_search2(
     while let Some(candidate) = candidates.pop_front() {
         if debug {
             println!(
-                "{} {} Considering hum {} [time={}, flow={}, total={}] \n                                                                            ele {} [time={}, flow={}, total={}]",
+                "{} {} hum {} [time={}, flow={}, total={}]",
                 total,
                 candidates.len(),
                 candidate.human.to_string(),
                 candidate.human.time,
                 candidate.human.flow,
                 candidate.human.total,
+            );
+            println!(
+                "{} {} ele {} [time={}, flow={}, total={}]",
+                total,
+                candidates.len(),
                 candidate.elephant.to_string(),
                 candidate.elephant.time,
                 candidate.elephant.flow,
@@ -334,19 +366,11 @@ fn bfs_search2(
             );
         }
 
-        let human_path = candidate.human.to_string();
-        let elephant_path = candidate.elephant.to_string();
-
         // Consider all the next steps.
         for (_, next) in valves.iter() {
             if let Some(new_human) = extend(&candidate.human, next, max_time, &candidate.seen, adj)
             {
-                let new_human_path = new_human.to_string();
-                if elephant_path < new_human_path {
-                    if debug {
-                        println!("skipping because {} < {}", elephant_path, new_human_path);
-                    }
-                } else {
+                if candidate.elephant >= new_human {
                     best = best.max(new_human.score(max_time) + candidate.elephant.score(max_time));
 
                     let mut new_seen = candidate.seen.clone();
@@ -371,12 +395,7 @@ fn bfs_search2(
             if let Some(new_elephant) =
                 extend(&candidate.elephant, next, max_time, &candidate.seen, adj)
             {
-                let new_elephant_path = new_elephant.to_string();
-                if new_elephant_path < human_path {
-                    if debug {
-                        println!("skipping because {} < {}", new_elephant_path, human_path);
-                    }
-                } else {
+                if new_elephant >= candidate.human {
                     best = best.max(new_elephant.score(max_time) + candidate.human.score(max_time));
 
                     let mut new_seen = candidate.seen.clone();
