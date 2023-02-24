@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::{
+    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
 };
@@ -12,7 +13,7 @@ struct Args {
     input: String,
 
     #[arg(long)]
-    part2: bool,
+    count: u64,
 
     #[arg(long)]
     debug: bool,
@@ -146,7 +147,8 @@ impl Board {
         true
     }
 
-    fn commit(&mut self) {
+    // Returns true if the commit reset the board state with a new floor.
+    fn commit(&mut self) -> bool {
         let mut new_floor = 0;
         for i in 0..4 {
             if self.piece[i] == 0 {
@@ -170,6 +172,9 @@ impl Board {
                 new_rows.push(self.rows[i]);
             }
             self.rows = new_rows;
+            true
+        } else {
+            false
         }
     }
 
@@ -210,7 +215,7 @@ fn read_input(path: &str, _debug: bool) -> Result<String> {
     Err(anyhow!("no input!"))
 }
 
-fn simulate(input: &str, debug: bool) -> Result<usize> {
+fn simulate(input: &str, count: u64, debug: bool) -> Result<usize> {
     let specs: Vec<&PieceMask> = vec![
         &HLINE_MASK,
         &PLUS_MASK,
@@ -220,12 +225,13 @@ fn simulate(input: &str, debug: bool) -> Result<usize> {
     ];
     let mut spec_i = 0;
 
-    // let winds = ">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>";
     let winds = read_input(input, debug)?.chars().collect::<Vec<char>>();
     let mut wind_i = 0;
 
     let mut committed = 0u64;
     let mut board = Board::new();
+
+    let mut reset_cache = HashMap::new();
 
     loop {
         if !board.has_piece() {
@@ -253,9 +259,46 @@ fn simulate(input: &str, debug: bool) -> Result<usize> {
         // println!("");
 
         if !board.move_down() {
-            board.commit();
             committed = committed + 1;
-            if committed % 10000000 == 0 {
+            if board.commit() {
+                if let Some((prev_c, prev_h)) = reset_cache.get(&(spec_i, wind_i)) {
+                    println!(
+                        "Reset at type={}, wind={}. Was {} @ {}. Now {} @ {}",
+                        spec_i,
+                        wind_i,
+                        prev_c,
+                        prev_h,
+                        committed,
+                        board.height()
+                    );
+
+                    let delta_c = committed - prev_c;
+                    let delta_h = board.height() - prev_h;
+                    println!("Δc={}, Δh={}", delta_c, delta_h);
+
+                    let remaining_c = count - committed;
+                    println!("remaining = {}", remaining_c);
+
+                    let cycles = remaining_c / delta_c;
+                    if cycles == 0 {
+                        println!("Not time warping. The end is near.");
+                    } else {
+                        committed = committed + cycles * delta_c;
+                        board.floor = board.floor + (cycles as usize) * delta_h;
+
+                        println!(
+                            "Time warping by {} cycles to {} @ {}",
+                            cycles,
+                            board.height(),
+                            committed
+                        );
+                        println!("");
+                    }
+                } else {
+                    reset_cache.insert((spec_i, wind_i), (committed, board.height()));
+                }
+            }
+            if committed % 100 == 0 {
                 println!(
                     "{} committed. height = {}, mem = {}",
                     committed,
@@ -263,17 +306,8 @@ fn simulate(input: &str, debug: bool) -> Result<usize> {
                     board.rows.len()
                 );
             }
-            if debug && committed == 10 {
-                return Ok(0);
-            }
-            if committed == 2022 {
-                let ans = board.height();
-                println!("ans = {}", ans);
-            }
-            if committed == 1000000000000 {
-                let ans = board.height();
-                println!("ans = {}", ans);
-                return Ok(ans);
+            if committed == count {
+                return Ok(board.height());
             }
         }
         // println!("Dropped");
@@ -283,7 +317,8 @@ fn simulate(input: &str, debug: bool) -> Result<usize> {
 }
 
 fn process(args: &Args) -> Result<()> {
-    simulate(&args.input, args.debug)?;
+    let ans = simulate(&args.input, args.count, args.debug)?;
+    println!("ans = {}", ans);
     Ok(())
 }
 
