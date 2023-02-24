@@ -255,8 +255,13 @@ fn simulate(input: &str, debug: bool) -> Result<usize> {
         if !board.move_down() {
             board.commit();
             committed = committed + 1;
-            if committed % 1000000 == 0 {
-                println!("{} committed", committed);
+            if committed % 10000000 == 0 {
+                println!(
+                    "{} committed. height = {}, mem = {}",
+                    committed,
+                    board.height(),
+                    board.rows.len()
+                );
             }
             if debug && committed == 10 {
                 return Ok(0);
