@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-type Coord = (i32, i32, i32);
+type Coord = (usize, usize, usize);
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -32,13 +33,13 @@ fn parse_line(s: &str) -> Result<Coord> {
         .ok_or_else(|| anyhow!("unable to strip second comma: {}", s))?;
 
     let n1 = sn1
-        .parse::<i32>()
+        .parse::<usize>()
         .with_context(|| anyhow!("invalid number: {}", sn1))?;
     let n2 = sn2
-        .parse::<i32>()
+        .parse::<usize>()
         .with_context(|| anyhow!("invalid number: {}", sn2))?;
     let n3 = sn3
-        .parse::<i32>()
+        .parse::<usize>()
         .with_context(|| anyhow!("invalid number: {}", sn3))?;
 
     Ok((n1, n2, n3))
@@ -79,6 +80,11 @@ fn dim(v: &Vec<Coord>) -> Coord {
     (x, y, z)
 }
 
+struct Space {
+    filled: bool,
+    exposed: bool,
+}
+
 fn process(args: &Args) -> Result<()> {
     println!("reading input...");
     let coords = read_input(&args.input, args.debug)?;
@@ -93,7 +99,10 @@ fn process(args: &Args) -> Result<()> {
         for _ in 0..dim.1 {
             let mut line = Vec::new();
             for _ in 0..dim.2 {
-                line.push(false);
+                line.push(Space {
+                    filled: false,
+                    exposed: false,
+                });
             }
             square.push(line);
         }
@@ -102,36 +111,116 @@ fn process(args: &Args) -> Result<()> {
 
     println!("adding coords...");
     for c in coords.iter() {
-        cube[c.0 as usize][c.1 as usize][c.2 as usize] = true;
+        cube[c.0 as usize][c.1 as usize][c.2 as usize].filled = true;
     }
 
     println!("counting faces...");
     let mut total = 0;
-    for ic in coords.iter() {
-        let c = (ic.0 as usize, ic.1 as usize, ic.2 as usize);
+    for c in coords.iter() {
         let mut faces = 0;
-        if c.0 == 0 || !cube[c.0 - 1][c.1][c.2] {
+        if c.0 == 0 || !cube[c.0 - 1][c.1][c.2].filled {
             faces = faces + 1;
         }
-        if !cube[c.0 + 1][c.1][c.2] {
+        if !cube[c.0 + 1][c.1][c.2].filled {
             faces = faces + 1;
         }
-        if c.1 == 0 || !cube[c.0][c.1 - 1][c.2] {
+        if c.1 == 0 || !cube[c.0][c.1 - 1][c.2].filled {
             faces = faces + 1;
         }
-        if !cube[c.0][c.1 + 1][c.2] {
+        if !cube[c.0][c.1 + 1][c.2].filled {
             faces = faces + 1;
         }
-        if c.2 == 0 || !cube[c.0][c.1][c.2 - 1] {
+        if c.2 == 0 || !cube[c.0][c.1][c.2 - 1].filled {
             faces = faces + 1;
         }
-        if !cube[c.0][c.1][c.2 + 1] {
+        if !cube[c.0][c.1][c.2 + 1].filled {
             faces = faces + 1;
         }
         total = total + faces;
     }
+    println!("part 1 ans = {}", total);
 
-    println!("ans = {}", total);
+    let mut q = VecDeque::new();
+
+    println!("seeding exposed at x bounds...");
+    for y in 0..dim.1 {
+        for z in 0..dim.2 {
+            q.push_back((0, y, z));
+            q.push_back((dim.0 - 1, y, z));
+        }
+    }
+    println!("seeding exposed at y bounds...");
+    for x in 0..dim.0 {
+        for z in 0..dim.2 {
+            q.push_back((x, 0, z));
+            q.push_back((x, dim.1 - 1, z));
+        }
+    }
+    println!("seeding exposed at z bounds...");
+    for x in 0..dim.0 {
+        for y in 0..dim.1 {
+            q.push_back((x, y, 0));
+            q.push_back((x, y, dim.2 - 1));
+        }
+    }
+
+    println!("doing flood fill...");
+    while let Some(c) = q.pop_front() {
+        if cube[c.0][c.1][c.2].exposed {
+            continue;
+        }
+        cube[c.0][c.1][c.2].exposed = true;
+
+        if cube[c.0][c.1][c.2].filled {
+            continue;
+        }
+
+        if c.0 > 0 && !cube[c.0 - 1][c.1][c.2].exposed {
+            q.push_back((c.0 - 1, c.1, c.2));
+        }
+        if c.1 > 0 && !cube[c.0][c.1 - 1][c.2].exposed {
+            q.push_back((c.0, c.1 - 1, c.2));
+        }
+        if c.2 > 0 && !cube[c.0][c.1][c.2 - 1].exposed {
+            q.push_back((c.0, c.1, c.2 - 1));
+        }
+
+        if c.0 < dim.0 - 1 && !cube[c.0 + 1][c.1][c.2].exposed {
+            q.push_back((c.0 + 1, c.1, c.2));
+        }
+        if c.1 < dim.1 - 1 && !cube[c.0][c.1 + 1][c.2].exposed {
+            q.push_back((c.0, c.1 + 1, c.2));
+        }
+        if c.2 < dim.2 - 1 && !cube[c.0][c.1][c.2 + 1].exposed {
+            q.push_back((c.0, c.1, c.2 + 1));
+        }
+    }
+
+    println!("counting exposed faces...");
+    total = 0;
+    for c in coords.iter() {
+        let mut faces = 0;
+        if c.0 == 0 || !cube[c.0 - 1][c.1][c.2].filled && cube[c.0 - 1][c.1][c.2].exposed {
+            faces = faces + 1;
+        }
+        if !cube[c.0 + 1][c.1][c.2].filled && cube[c.0 + 1][c.1][c.2].exposed {
+            faces = faces + 1;
+        }
+        if c.1 == 0 || !cube[c.0][c.1 - 1][c.2].filled && cube[c.0][c.1 - 1][c.2].exposed {
+            faces = faces + 1;
+        }
+        if !cube[c.0][c.1 + 1][c.2].filled && cube[c.0][c.1 + 1][c.2].exposed {
+            faces = faces + 1;
+        }
+        if c.2 == 0 || !cube[c.0][c.1][c.2 - 1].filled && cube[c.0][c.1][c.2 - 1].exposed {
+            faces = faces + 1;
+        }
+        if !cube[c.0][c.1][c.2 + 1].filled && cube[c.0][c.1][c.2 + 1].exposed {
+            faces = faces + 1;
+        }
+        total = total + faces;
+    }
+    println!("part 2 ans = {}", total);
 
     Ok(())
 }
