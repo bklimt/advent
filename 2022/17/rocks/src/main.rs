@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::{
-    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
 };
@@ -19,187 +18,175 @@ struct Args {
     debug: bool,
 }
 
-type PieceSpec = [(i32, i32)];
-
-const HLINE_SPEC: [(i32, i32); 4] = [(0, 0), (1, 0), (2, 0), (3, 0)];
-const PLUS_SPEC: [(i32, i32); 5] = [(1, -2), (0, -1), (1, -1), (2, -1), (1, 0)];
-const ELBOW_SPEC: [(i32, i32); 5] = [(2, -2), (2, -1), (2, 0), (1, 0), (0, 0)];
-const VLINE_SPEC: [(i32, i32); 4] = [(0, 0), (0, -1), (0, -2), (0, -3)];
-const SQUARE_SPEC: [(i32, i32); 4] = [(0, -1), (1, -1), (0, 0), (1, 0)];
-
-#[derive(Clone, Copy)]
-enum TileType {
-    Space,
-    FixedRock,
-    LooseRock,
-}
+type PieceMask = [u8; 4];
+const HLINE_MASK: [u8; 4] = [0b0011110, 0, 0, 0];
+const PLUS_MASK: [u8; 4] = [0b0001000, 0b0011100, 0b0001000, 0];
+const ELBOW_MASK: [u8; 4] = [0b0011100, 0b0000100, 0b0000100, 0];
+const VLINE_MASK: [u8; 4] = [0b0010000, 0b0010000, 0b0010000, 0b0010000];
+const SQUARE_MASK: [u8; 4] = [0b0011000, 0b0011000, 0, 0];
 
 struct Board {
-    start_x: i32,
-    start_y: i32,
-    end_x: i32,
-    end_y: i32,
+    // Rows of the board, with the bottom being the floor.
+    // Each row is a bitmask of whether that column is solid.
+    rows: Vec<u8>,
 
-    tiles: HashMap<(i32, i32), TileType>,
+    // The height of the bottom of the board.
+    floor: usize,
 
-    piece_spec: Option<&'static PieceSpec>,
-    piece_x: i32,
-    piece_y: i32,
+    // Whether there is currently a piece.
+    has_piece: bool,
+
+    // The bottom row of the piece and up.
+    piece: [u8; 4],
+
+    // The row that piece[0] is on, relative to floor.
+    piece_y: usize,
 }
 
 impl Board {
     fn new() -> Self {
         Board {
-            start_x: 0,
-            start_y: 0,
-            end_x: 7,
-            end_y: 1,
-            tiles: HashMap::new(),
-            piece_spec: None,
-            piece_x: 0,
+            rows: Vec::new(),
+            floor: 0,
+            has_piece: false,
+            piece: [0, 0, 0, 0],
             piece_y: 0,
         }
     }
 
-    fn get(&self, x: i32, y: i32) -> TileType {
-        *self.tiles.get(&(x, y)).unwrap_or(&TileType::Space)
-    }
-
-    fn set(&mut self, x: i32, y: i32, tile: TileType) {
-        self.start_x = self.start_x.min(x);
-        self.start_y = self.start_y.min(y);
-        self.end_x = self.end_x.max(x + 1);
-        self.end_y = self.end_y.max(y + 1);
-        self.tiles.insert((x, y), tile);
-    }
-
     fn print(&self) {
-        for y in self.start_y..self.end_y {
-            print!("{:4} |", y);
-            for x in self.start_x..self.end_x {
-                let mut typ = self.get(x, y);
+        let mut top = self.rows.len();
+        if self.has_piece {
+            top = top.max(self.piece_y + 4);
+        }
+        for i in (0..top).rev() {
+            print!("{:4} |", i + self.floor);
+            let row = if i < self.rows.len() { self.rows[i] } else { 0 };
+            let piece = if i >= self.piece_y && i < self.piece_y + 4 {
+                self.piece[i - self.piece_y]
+            } else {
+                0
+            };
 
-                if let Some(spec) = self.piece_spec {
-                    for coords in spec {
-                        if x == self.piece_x + coords.0 && y == self.piece_y + coords.1 {
-                            typ = TileType::LooseRock;
-                        }
-                    }
+            let mut mask = 0b01000000;
+            for _ in 0..7 {
+                if piece & mask != 0 {
+                    print!("@");
+                } else if row & mask != 0 {
+                    print!("#");
+                } else {
+                    print!(".");
                 }
-
-                print!(
-                    "{}",
-                    match typ {
-                        TileType::Space => '.',
-                        TileType::FixedRock => '#',
-                        TileType::LooseRock => '@',
-                    }
-                );
+                mask = mask >> 1;
             }
+
             println!("|");
         }
-        print!("     +");
-        for _ in self.start_x..self.end_x {
-            print!("-");
-        }
-        println!("+");
+        println!("     +-------+");
     }
 
-    fn can_move(&self, dx: i32, dy: i32) -> bool {
-        if let Some(spec) = self.piece_spec {
-            for coords in spec {
-                let p = (self.piece_x + dx + coords.0, self.piece_y + dy + coords.1);
-                if p.0 < 0 || p.0 >= 7 {
+    fn move_right(&mut self) -> bool {
+        if !self.has_piece {
+            return false;
+        }
+        for i in 0..4 {
+            if self.piece[i] & 0b0000001 != 0 {
+                return false;
+            }
+            let new_piece = self.piece[i] >> 1;
+            if i + self.piece_y < self.rows.len() {
+                if self.rows[i + self.piece_y] & new_piece != 0 {
                     return false;
-                }
-                if p.1 > 0 {
-                    return false;
-                }
-                match self.get(p.0, p.1) {
-                    TileType::Space => {}
-                    TileType::FixedRock | TileType::LooseRock => {
-                        return false;
-                    }
                 }
             }
-            true
-        } else {
-            false
         }
+        for i in 0..4 {
+            self.piece[i] = self.piece[i] >> 1;
+        }
+        true
     }
 
-    fn move_piece(&mut self, dx: i32, dy: i32) -> bool {
-        if !self.can_move(dx, dy) {
-            false
-        } else {
-            self.piece_x = self.piece_x + dx;
-            self.piece_y = self.piece_y + dy;
-
-            if let Some(spec) = self.piece_spec {
-                for coords in spec {
-                    let p = (self.piece_x + coords.0, self.piece_y + coords.1);
-                    // This is just to update min/max x/y.
-                    self.set(p.0, p.1, TileType::Space);
+    fn move_left(&mut self) -> bool {
+        if !self.has_piece {
+            return false;
+        }
+        for i in 0..4 {
+            if self.piece[i] & 0b01000000 != 0 {
+                return false;
+            }
+            let new_piece = self.piece[i] << 1;
+            if i + self.piece_y < self.rows.len() {
+                if self.rows[i + self.piece_y] & new_piece != 0 {
+                    return false;
                 }
             }
-
-            true
         }
+        for i in 0..4 {
+            self.piece[i] = self.piece[i] << 1;
+        }
+        true
+    }
+
+    fn move_down(&mut self) -> bool {
+        if !self.has_piece {
+            return false;
+        }
+        if self.piece_y == 0 {
+            return false;
+        }
+        for i in 0..4 {
+            let new_y = (self.piece_y + i) - 1;
+            if new_y < self.rows.len() {
+                if self.rows[new_y] & self.piece[i] != 0 {
+                    return false;
+                }
+            }
+        }
+        self.piece_y = self.piece_y - 1;
+        true
     }
 
     fn commit(&mut self) {
-        if let Some(spec) = self.piece_spec {
-            for coords in spec {
-                let p = (self.piece_x + coords.0, self.piece_y + coords.1);
-                self.set(p.0, p.1, TileType::FixedRock);
+        let mut new_floor = 0;
+        for i in 0..4 {
+            if self.piece[i] == 0 {
+                continue;
             }
-            self.piece_spec = None
+            let new_y = self.piece_y + i;
+            while self.rows.len() <= new_y {
+                self.rows.push(0);
+            }
+            self.rows[new_y] = self.rows[new_y] | self.piece[i];
+            if self.rows[new_y] == 0b01111111 {
+                new_floor = new_y + 1;
+            }
+        }
+        self.has_piece = false;
+
+        if new_floor > 0 {
+            self.floor = self.floor + new_floor;
+            let mut new_rows = Vec::new();
+            for i in new_floor..self.rows.len() {
+                new_rows.push(self.rows[i]);
+            }
+            self.rows = new_rows;
         }
     }
 
     fn has_piece(&self) -> bool {
-        self.piece_spec.is_some()
+        self.has_piece
     }
 
-    fn height(&self) -> i32 {
-        for y in self.start_y..self.end_y {
-            for x in self.start_x..self.end_x {
-                if let TileType::FixedRock = self.get(x, y) {
-                    return (y * -1) + 1;
-                }
-            }
-        }
-        0
+    fn height(&self) -> usize {
+        self.floor + self.rows.len()
     }
 
-    fn place(&mut self, spec: &'static PieceSpec) -> bool {
-        let mut min_y = -3;
-        for y in self.start_y..self.end_y {
-            if y - 4 >= min_y {
-                break;
-            }
-            for x in self.start_x..self.end_x {
-                if let TileType::FixedRock = self.get(x, y) {
-                    min_y = y - 4;
-                    break;
-                }
-            }
+    fn place(&mut self, spec: &'static PieceMask) {
+        self.has_piece = true;
+        self.piece_y = self.rows.len() + 3;
+        for i in 0..4 {
+            self.piece[i] = spec[i];
         }
-
-        self.piece_spec = Some(spec);
-        self.piece_x = 2;
-        self.piece_y = min_y;
-        for coords in spec {
-            let p = (self.piece_x + coords.0, self.piece_y + coords.1);
-            match self.get(p.0, p.1) {
-                // The `set` call is just to update the min/max x/y.
-                TileType::Space => self.set(p.0, p.1, TileType::Space),
-                TileType::FixedRock | TileType::LooseRock => {
-                    return false;
-                }
-            }
-        }
-        true
     }
 }
 
@@ -223,21 +210,21 @@ fn read_input(path: &str, _debug: bool) -> Result<String> {
     Err(anyhow!("no input!"))
 }
 
-fn simulate(input: &str, debug: bool) -> Result<i32> {
-    let specs: Vec<&PieceSpec> = vec![
-        &HLINE_SPEC,
-        &PLUS_SPEC,
-        &ELBOW_SPEC,
-        &VLINE_SPEC,
-        &SQUARE_SPEC,
+fn simulate(input: &str, debug: bool) -> Result<usize> {
+    let specs: Vec<&PieceMask> = vec![
+        &HLINE_MASK,
+        &PLUS_MASK,
+        &ELBOW_MASK,
+        &VLINE_MASK,
+        &SQUARE_MASK,
     ];
     let mut spec_i = 0;
 
     // let winds = ">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>";
-    let winds = read_input(input, debug)?;
+    let winds = read_input(input, debug)?.chars().collect::<Vec<char>>();
     let mut wind_i = 0;
 
-    let mut committed = 0;
+    let mut committed = 0u64;
     let mut board = Board::new();
 
     loop {
@@ -247,27 +234,40 @@ fn simulate(input: &str, debug: bool) -> Result<i32> {
 
             board.place(spec);
             if debug {
-                println!("New Piece");
+                println!("New Piece (height = {})", board.height());
                 board.print();
                 println!("");
             }
         }
 
-        let swind = winds.chars().nth(wind_i).unwrap();
+        let swind = winds[wind_i];
         wind_i = (wind_i + 1) % winds.len();
-        let dx = if swind == '<' { -1 } else { 1 };
+        if swind == '<' {
+            board.move_left();
+        } else {
+            board.move_right();
+        }
 
-        board.move_piece(dx, 0);
         // println!("Moved {}, {}", 1, 0);
         // board.print();
         // println!("");
 
-        if !board.move_piece(0, 1) {
+        if !board.move_down() {
             board.commit();
             committed = committed + 1;
+            if committed % 1000000 == 0 {
+                println!("{} committed", committed);
+            }
+            if debug && committed == 10 {
+                return Ok(0);
+            }
             if committed == 2022 {
                 let ans = board.height();
-                println!("ans = {}", board.height());
+                println!("ans = {}", ans);
+            }
+            if committed == 1000000000000 {
+                let ans = board.height();
+                println!("ans = {}", ans);
                 return Ok(ans);
             }
         }
