@@ -221,7 +221,7 @@ impl Blueprint {
         let mut new_plan = Plan {
             inventory: plan.inventory.clone(),
             robots: plan.robots.clone(),
-            time: plan.time + wait + 1,
+            time: plan.time + wait,
         };
 
         // Update the inventory first.
@@ -257,7 +257,7 @@ impl Blueprint {
             .robots
             .insert(part.clone(), 1 + *new_plan.robots.get(part).unwrap_or(&0));
 
-        // println!("new plan is {}", new_plan.to_string());
+        // println!("New plan is {}", new_plan.to_string());
 
         Some(new_plan)
     }
@@ -268,7 +268,7 @@ impl Blueprint {
         q.push_back(Plan::new());
         while let Some(plan) = q.pop_front() {
             let score = plan.score_at(max_time);
-            println!("{} -> {}", plan.to_string(), score);
+            // println!("{} -> {}", plan.to_string(), score);
             best = best.max(score);
             for part in ALL_PARTS {
                 if let Some(new_plan) = self.extend(&plan, part, max_time) {
