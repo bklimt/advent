@@ -13,6 +13,9 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    max_time: i32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -187,14 +190,16 @@ fn ceil_div(a: i32, b: i32) -> i32 {
 }
 
 impl Blueprint {
-    fn extend(&self, plan: &Plan, part: &Part, max_time: i32) -> Option<Plan> {
+    fn extend(&self, plan: &Plan, part: &Part, max_time: i32, debug: bool) -> Option<Plan> {
         if plan.time >= max_time {
             return None;
         }
-        // println!("Considering extending {} with {:?}", plan.to_string(), part);
+        if debug {
+            println!("Considering extending {} with {:?}", plan.to_string(), part);
+        }
 
         // How long would it take to get the inventory to build that?
-        let mut wait = 0;
+        let mut wait = 1;
         let recipe = self.recipes.get(part).unwrap();
         for ingredient in recipe.ingredients.iter() {
             let have = *plan.inventory.get(&ingredient.part).unwrap_or(&0);
@@ -215,7 +220,9 @@ impl Blueprint {
             wait = wait.max(new_wait);
         }
 
-        // println!("can build {:?} robot after {} seconds", part, wait);
+        if debug {
+            println!("can build {:?} robot after {} seconds", part, wait);
+        }
 
         // The 1 is the time to build the robot.
         let mut new_plan = Plan {
@@ -257,21 +264,25 @@ impl Blueprint {
             .robots
             .insert(part.clone(), 1 + *new_plan.robots.get(part).unwrap_or(&0));
 
-        // println!("New plan is {}", new_plan.to_string());
+        if debug {
+            println!("New plan is {}", new_plan.to_string());
+        }
 
         Some(new_plan)
     }
 
-    fn search(&self, max_time: i32) -> i32 {
+    fn search(&self, max_time: i32, debug: bool) -> i32 {
         let mut best = 0;
         let mut q = VecDeque::new();
         q.push_back(Plan::new());
         while let Some(plan) = q.pop_front() {
             let score = plan.score_at(max_time);
-            // println!("{} -> {}", plan.to_string(), score);
+            if debug {
+                println!("{} -> {}", plan.to_string(), score);
+            }
             best = best.max(score);
             for part in ALL_PARTS {
-                if let Some(new_plan) = self.extend(&plan, part, max_time) {
+                if let Some(new_plan) = self.extend(&plan, part, max_time, debug) {
                     q.push_back(new_plan);
                 }
             }
@@ -310,7 +321,7 @@ fn process(args: &Args) -> Result<()> {
     let blueprints = read_input(&args.input, args.debug)?;
     for blueprint in blueprints.iter() {
         println!("Trying blueprint {}...", blueprint.id);
-        let ans = blueprint.search(24);
+        let ans = blueprint.search(args.max_time, args.debug);
         println!("ans = {}", ans);
     }
     Ok(())
