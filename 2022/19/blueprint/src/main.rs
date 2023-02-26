@@ -278,7 +278,7 @@ impl Blueprint {
         while let Some(plan) = q.pop_front() {
             let score = plan.score_at(max_time);
             if debug {
-                println!("{} -> {}", plan.to_string(), score);
+                println!("{:10} {} -> {}", q.len(), plan.to_string(), score);
             }
             best = best.max(score);
             for part in ALL_PARTS {
