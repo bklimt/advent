@@ -11,14 +11,17 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 struct Node {
     id: u64,
-    val: i32,
+    val: i64,
 }
 
-fn read_input(path: &str, debug: bool) -> Result<Vec<i32>> {
+fn read_input(path: &str, debug: bool) -> Result<Vec<i64>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
     let mut v = Vec::new();
@@ -38,7 +41,7 @@ fn read_input(path: &str, debug: bool) -> Result<Vec<i32>> {
             println!("line: {}", line);
         }
 
-        v.push(line.parse::<i32>()?);
+        v.push(line.parse::<i64>()?);
     }
     Ok(v)
 }
@@ -50,8 +53,13 @@ fn process(args: &Args) -> Result<()> {
     // Assign ids to each number.
     let mut nodes = Vec::new();
     let mut rearranged = Vec::new();
-    for val in input {
+    for original_val in input {
         let id = rand::random();
+        let val = if args.part2 {
+            811589153 * original_val
+        } else {
+            original_val
+        };
         nodes.push(Node { id, val });
         rearranged.push(id);
         if args.debug {
@@ -63,34 +71,37 @@ fn process(args: &Args) -> Result<()> {
     }
 
     // Rearrange them as specified.
-    for n in nodes.iter() {
-        let i = rearranged.iter().position(|id| *id == n.id).unwrap();
-        // It's -1 because of a bug in the problem spec.
-        let len = (nodes.len() - 1) as i32;
-        let mut j = (((((i as i32) + n.val) % len) + len) % len) as usize;
-        if args.debug {
-            println!("moving {} from {} to {} with id={}", n.val, i, j, n.id);
-        }
-
-        // No element is allowed to move to the front of the list.
-        if j == 0 && i != 0 {
-            j = nodes.len() - 1;
-        }
-
-        rearranged.remove(i);
-        rearranged.insert(j, n.id);
-
-        if args.debug {
-            print!("new rearranged: ");
-            for id in rearranged.iter() {
-                print!("{} ", id);
+    let iterations = if args.part2 { 10 } else { 1 };
+    for _ in 0..iterations {
+        for n in nodes.iter() {
+            let i = rearranged.iter().position(|id| *id == n.id).unwrap();
+            // It's -1 because of a bug in the problem spec.
+            let len = (nodes.len() - 1) as i64;
+            let mut j = (((((i as i64) + n.val) % len) + len) % len) as usize;
+            if args.debug {
+                println!("moving {} from {} to {} with id={}", n.val, i, j, n.id);
             }
-            println!("");
-            for id in rearranged.iter() {
-                let i = nodes.iter().position(|n| n.id == *id).unwrap();
-                print!("{} ", nodes[i].val);
+
+            // No element is allowed to move to the front of the list.
+            if j == 0 && i != 0 {
+                j = nodes.len() - 1;
             }
-            println!("");
+
+            rearranged.remove(i);
+            rearranged.insert(j, n.id);
+
+            if args.debug {
+                print!("new rearranged: ");
+                for id in rearranged.iter() {
+                    print!("{} ", id);
+                }
+                println!("");
+                for id in rearranged.iter() {
+                    let i = nodes.iter().position(|n| n.id == *id).unwrap();
+                    print!("{} ", nodes[i].val);
+                }
+                println!("");
+            }
         }
     }
 
