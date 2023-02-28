@@ -85,9 +85,40 @@ struct Map {
     rows: Vec<MapRow>,
 }
 
+enum Face {
+    Top,
+    Back,
+    Left,
+    Front,
+    Down,
+    Right,
+}
+
 impl Map {
     fn initial_pos(&self) -> (usize, usize) {
         (self.rows[0].offset, 0)
+    }
+
+    fn face(&self, pos: (usize, usize)) -> Face {
+        let (x, y) = pos;
+        let face_size = self.rows.len() / 3;
+        let latitude = y / face_size;
+        let longitude = x / face_size;
+
+        /*
+         *   T
+         * BLF
+         *   DR
+         */
+        match (latitude, longitude) {
+            (0, 2) => Face::Top,
+            (1, 0) => Face::Back,
+            (1, 1) => Face::Left,
+            (1, 2) => Face::Front,
+            (2, 2) => Face::Down,
+            (2, 3) => Face::Right,
+            _ => panic!("bad face: {}, {}", latitude, longitude),
+        }
     }
 
     fn print(&self, pos: (usize, usize), dir: &Orientation) {
