@@ -13,40 +13,69 @@ struct Args {
     debug: bool,
 }
 
+#[derive(Debug)]
+enum Orientation {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl Orientation {
+    fn turn_right(&self) -> Orientation {
+        match self {
+            Orientation::Up => Orientation::Right,
+            Orientation::Down => Orientation::Left,
+            Orientation::Left => Orientation::Up,
+            Orientation::Right => Orientation::Down,
+        }
+    }
+
+    fn turn_left(&self) -> Orientation {
+        match self {
+            Orientation::Up => Orientation::Left,
+            Orientation::Down => Orientation::Right,
+            Orientation::Left => Orientation::Down,
+            Orientation::Right => Orientation::Up,
+        }
+    }
+
+    fn score(&self) -> usize {
+        match self {
+            Orientation::Up => 3,
+            Orientation::Down => 1,
+            Orientation::Left => 2,
+            Orientation::Right => 0,
+        }
+    }
+
+    fn to_string(&self) -> String {
+        match self {
+            Orientation::Up => "^".to_string(),
+            Orientation::Down => "v".to_string(),
+            Orientation::Left => "<".to_string(),
+            Orientation::Right => ">".to_string(),
+        }
+    }
+}
+
 struct MapRow {
     offset: usize,
     data: Vec<bool>,
 }
 
 impl MapRow {
-    fn get(&self, i: usize) -> Option<bool> {
-        return if i < self.offset {
-            None
-        } else if (i - self.offset) >= self.data.len() {
-            None
-        } else {
-            Some(self.data[i - self.offset])
-        };
-    }
-
-    fn set(&mut self, i: usize, val: bool) -> Result<()> {
-        if i < self.offset || (i - self.offset) >= self.data.len() {
-            return Err(anyhow!(
-                "invalid offset: {} in row from {} of len {}",
-                i,
-                self.offset,
-                self.data.len()
-            ));
-        }
-        self.data[i - self.offset] = val;
-        Ok(())
-    }
-
-    fn print(&self) {
+    fn print(&self, pos: Option<(usize, &Orientation)>) {
         for _ in 0..self.offset {
             print!(" ");
         }
-        for b in self.data.iter() {
+        for (x, b) in self.data.iter().enumerate() {
+            if let Some((px, d)) = pos {
+                if px == x + self.offset {
+                    print!("{}", d.to_string());
+                    continue;
+                }
+            }
             print!("{}", if *b { "#" } else { "." });
         }
     }
@@ -57,30 +86,122 @@ struct Map {
 }
 
 impl Map {
-    fn height(&self) -> usize {
-        self.rows.len()
+    fn initial_pos(&self) -> (usize, usize) {
+        (self.rows[0].offset, 0)
     }
 
-    fn get(&self, x: usize, y: usize) -> Option<bool> {
-        return if y >= self.rows.len() {
-            None
-        } else {
-            self.rows[y].get(x)
-        };
-    }
-
-    fn set(&mut self, x: usize, y: usize, val: bool) -> Result<()> {
-        return if y >= self.rows.len() {
-            Err(anyhow!("invalid row: {} out of {}", y, self.rows.len()))
-        } else {
-            self.rows[y].set(x, val)
-        };
-    }
-
-    fn print(&self) {
-        for row in self.rows.iter() {
-            row.print();
+    fn print(&self, pos: (usize, usize), dir: &Orientation) {
+        let (px, py) = pos;
+        for (y, row) in self.rows.iter().enumerate() {
+            if py == y {
+                row.print(Some((px, dir)));
+            } else {
+                row.print(None);
+            }
             println!("");
+        }
+    }
+
+    fn walk_right(&self, pos: (usize, usize), dist: i64) -> (usize, usize) {
+        let mut pos = pos;
+        for _ in 0..dist {
+            let row = self.rows.get(pos.1).unwrap();
+            let new_x = if pos.0 == row.offset + row.data.len() - 1 {
+                row.offset
+            } else {
+                pos.0 + 1
+            };
+            if row.data[new_x - row.offset] {
+                break;
+            }
+            pos = (new_x, pos.1);
+        }
+        pos
+    }
+
+    fn walk_left(&self, pos: (usize, usize), dist: i64) -> (usize, usize) {
+        let mut pos = pos;
+        for _ in 0..dist {
+            let row = self.rows.get(pos.1).unwrap();
+            let new_x = if pos.0 == row.offset {
+                (row.offset + row.data.len()) - 1
+            } else {
+                pos.0 - 1
+            };
+            if row.data[new_x - row.offset] {
+                break;
+            }
+            pos = (new_x, pos.1);
+        }
+        pos
+    }
+
+    fn walk_up(&self, pos: (usize, usize), dist: i64) -> (usize, usize) {
+        let mut pos = pos;
+        for _ in 0..dist {
+            let mut new_y = if pos.1 == 0 {
+                self.rows.len() - 1
+            } else {
+                pos.1 - 1
+            };
+            // Handle wrapping.
+            loop {
+                let new_row = &self.rows[new_y];
+                if pos.0 >= new_row.offset && pos.0 < new_row.offset + new_row.data.len() {
+                    break;
+                }
+                new_y = if new_y == 0 {
+                    self.rows.len() - 1
+                } else {
+                    new_y - 1
+                };
+            }
+            // Check for a wall.
+            let new_row = &self.rows[new_y];
+            if new_row.data[pos.0 - new_row.offset] {
+                break;
+            }
+            pos = (pos.0, new_y);
+        }
+        pos
+    }
+
+    fn walk_down(&self, pos: (usize, usize), dist: i64) -> (usize, usize) {
+        let mut pos = pos;
+        for _ in 0..dist {
+            let mut new_y = if pos.1 == self.rows.len() - 1 {
+                0
+            } else {
+                pos.1 + 1
+            };
+            // Handle wrapping.
+            loop {
+                let new_row = &self.rows[new_y];
+                if pos.0 >= new_row.offset && pos.0 < new_row.offset + new_row.data.len() {
+                    break;
+                }
+                new_y = if new_y == self.rows.len() - 1 {
+                    0
+                } else {
+                    new_y + 1
+                };
+            }
+            // Check for a wall.
+            let new_row = &self.rows[new_y];
+            if new_row.data[pos.0 - new_row.offset] {
+                break;
+            }
+            pos = (pos.0, new_y);
+        }
+        pos
+    }
+
+    fn walk(&self, pos: (usize, usize), dir: &Orientation, dist: i64) -> (usize, usize) {
+        match dir {
+            Orientation::Up => self.walk_up(pos, dist),
+            Orientation::Down => self.walk_down(pos, dist),
+            Orientation::Left => self.walk_left(pos, dist),
+            Orientation::Right => self.walk_right(pos, dist),
         }
     }
 }
@@ -180,25 +301,45 @@ fn read_input(path: &str, _debug: bool) -> Result<(Map, Vec<Instruction>)> {
     };
 }
 
-fn turn_right(p: (i64, i64)) -> (i64, i64) {
-    // (1, 0) -> (0, 1)
-    // (0, 1) -> (-1, 0)
-    // (-1, 0) -> (0, -1)
-    // (0, -1) -> (1, 0)
-    return if p.1 == 0 { (0, p.0) } else { (-1 * p.0, 0) };
-}
-
-fn turn_left(p: (i64, i64)) -> (i64, i64) {
-    return if p.0 == 0 { (p.1, 0) } else { (0, -1 * p.0) };
-}
-
 fn process(args: &Args) -> Result<()> {
     println!("reading input...");
     let (map, instructions) = read_input(&args.input, args.debug)?;
+
+    let mut pos = map.initial_pos();
+    let mut dir = Orientation::Right;
     if args.debug {
-        map.print();
+        map.print(pos, &dir);
         println!("{:?}", instructions);
     }
+
+    for step in instructions {
+        if args.debug {
+            println!("Facing {:?} @ ({}, {})", dir, pos.0, pos.1);
+            println!("Step: {:?}", step);
+        }
+        match step {
+            Instruction::Forward(dist) => {
+                pos = map.walk(pos, &dir, dist);
+            }
+            Instruction::Right => {
+                dir = dir.turn_right();
+            }
+            Instruction::Left => {
+                dir = dir.turn_left();
+            }
+        }
+        if args.debug {
+            map.print(pos, &dir);
+            println!("");
+        }
+    }
+    if args.debug {
+        println!("Facing {:?} @ ({}, {})", dir, pos.0, pos.1);
+    }
+
+    let ans = 1000 * (pos.1 + 1) + 4 * (pos.0 + 1) + dir.score();
+    println!("ans = {}", ans);
+
     Ok(())
 }
 
