@@ -26,9 +26,9 @@ impl Direction {
     fn next(&self) -> Direction {
         match self {
             Direction::North => Direction::South,
-            Direction::South => Direction::East,
-            Direction::East => Direction::West,
-            Direction::West => Direction::North,
+            Direction::South => Direction::West,
+            Direction::West => Direction::East,
+            Direction::East => Direction::North,
         }
     }
 }
@@ -158,6 +158,13 @@ impl Map {
             println!("");
         }
     }
+
+    fn score(&self) -> i64 {
+        let width = (self.bounds.max_x - self.bounds.min_x) + 1;
+        let height = (self.bounds.max_y - self.bounds.min_y) + 1;
+        let area = width * height;
+        area - (self.elves.len() as i64)
+    }
 }
 
 fn read_input(path: &str, debug: bool) -> Result<Map> {
@@ -231,6 +238,7 @@ fn process(args: &Args) -> Result<()> {
             println!("");
         }
     }
+    println!("ans = {}", map.score());
     Ok(())
 }
 
