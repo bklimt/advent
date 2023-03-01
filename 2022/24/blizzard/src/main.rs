@@ -216,12 +216,17 @@ impl Map {
         adj
     }
 
-    fn dijkstra(&self, debug: bool) {
+    fn dijkstra(
+        &self,
+        start: (usize, usize, usize),
+        end: (usize, usize),
+        debug: bool,
+    ) -> Option<usize> {
         let mut max_t = 0usize;
         let mut q = DoublePriorityQueue::new();
         let mut dist = HashMap::new();
-        q.push((1, 0, 0), 0i64);
-        dist.insert((1, 0, 0), 0i64);
+        q.push(start, start.2);
+        dist.insert(start, start.2);
         while let Some((u, d_u)) = q.pop_min() {
             if debug {
                 if u.2 > max_t {
@@ -229,20 +234,22 @@ impl Map {
                     println!("t = {}", max_t);
                 }
             }
-            if u.0 == self.width - 2 && u.1 == self.height - 1 {
+            if u.0 == end.0 && u.1 == end.1 {
                 if debug {
                     println!("t = {}", u.2);
                 }
-                break;
+                return Some(u.2);
             }
             for v in self.adjacent(u) {
                 let alt = d_u + 1;
-                if alt < *dist.get(&v).unwrap_or(&i64::MAX) {
+                // dist is basically just "seen". If there's a value, we'll never beat it.
+                if alt < *dist.get(&v).unwrap_or(&usize::MAX) {
                     dist.insert(v.clone(), alt);
                     q.push_decrease(v.clone(), alt);
                 }
             }
         }
+        None
     }
 }
 
@@ -261,7 +268,24 @@ fn process(args: &Args) -> Result<()> {
     if debug {
         println!("searching...");
     }
-    map.dijkstra(debug);
+
+    let part1 = map
+        .dijkstra((1, 0, 0), (map.width - 2, map.height - 1), debug)
+        .ok_or_else(|| anyhow!("no answer for part 1"))?;
+    println!("part1 = {}", part1);
+
+    let back_to_start = map
+        .dijkstra((map.width - 2, map.height - 1, part1), (1, 0), debug)
+        .ok_or_else(|| anyhow!("no answer for part 2"))?;
+    let part2 = map
+        .dijkstra(
+            (1, 0, back_to_start),
+            (map.width - 2, map.height - 1),
+            debug,
+        )
+        .ok_or_else(|| anyhow!("no answer for part 2"))?;
+
+    println!("part2 = {}", part2);
 
     if debug {
         println!("done.");
