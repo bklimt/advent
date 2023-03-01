@@ -12,6 +12,9 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -54,7 +57,9 @@ struct Map {
 }
 
 impl Map {
-    fn step(&mut self) {
+    fn step(&mut self) -> bool {
+        let mut some_active = false;
+
         // Gather all of the start positions.
         let mut start_pos = HashSet::new();
         for elf in self.elves.iter() {
@@ -72,6 +77,7 @@ impl Map {
             elf.active = elf.active || start_pos.contains(&(x - 1, y + 1));
             elf.active = elf.active || start_pos.contains(&(x, y + 1));
             elf.active = elf.active || start_pos.contains(&(x + 1, y + 1));
+            some_active = some_active || elf.active;
         }
 
         // Find all the proposals for next spots.
@@ -144,6 +150,7 @@ impl Map {
         }
         self.bounds = bounds;
         self.dir = self.dir.next();
+        some_active
     }
 
     fn print(&self) {
@@ -229,16 +236,28 @@ fn process(args: &Args) -> Result<()> {
         map.print();
         println!("");
     }
-    for i in 1..=10 {
-        map.step();
+    let mut round = 1;
+    loop {
+        let active = map.step();
         if args.debug {
-            println!("== End of Round {} ==", i);
+            println!("== End of Round {} ==", round);
             map.print();
             println!("bounds: {:?}", map.bounds);
             println!("");
         }
+        if args.part2 && !active {
+            break;
+        }
+        round = round + 1;
+        if !args.part2 && round > 10 {
+            break;
+        }
     }
-    println!("ans = {}", map.score());
+    if args.part2 {
+        println!("ans = {}", round);
+    } else {
+        println!("ans = {}", map.score());
+    }
     Ok(())
 }
 
