@@ -41,6 +41,35 @@ fn decode(s: &str) -> Result<i64> {
     Ok(pos - neg)
 }
 
+fn encode(n: i64) -> String {
+    let mut n = n;
+    let mut v = Vec::new();
+    n = n.abs();
+    loop {
+        if n == 0 {
+            break;
+        }
+        v.push(match n % 5 {
+            0 => '0',
+            1 => '1',
+            2 => '2',
+            3 => {
+                n = n + 2;
+                '='
+            }
+            4 => {
+                n = n + 1;
+                '-'
+            }
+            _ => {
+                panic!("invalid modulo");
+            }
+        });
+        n = n / 5;
+    }
+    v.into_iter().rev().collect()
+}
+
 fn read_input(path: &str, debug: bool) -> Result<Vec<i64>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
@@ -59,7 +88,8 @@ fn read_input(path: &str, debug: bool) -> Result<Vec<i64>> {
 
         let n = decode(line)?;
         if debug {
-            println!("{} => {}", line, n);
+            let e = encode(n);
+            println!("{} => {} => {}", line, n, e);
         }
         v.push(n);
     }
@@ -67,7 +97,15 @@ fn read_input(path: &str, debug: bool) -> Result<Vec<i64>> {
 }
 
 fn process(args: &Args) -> Result<()> {
-    let _ = read_input(&args.input, args.debug)?;
+    let v = read_input(&args.input, args.debug)?;
+    let mut sum = 0;
+    for n in v {
+        sum = sum + n;
+    }
+    if args.debug {
+        println!("sum = {}", sum);
+    }
+    println!("ans = {}", encode(sum));
     Ok(())
 }
 
