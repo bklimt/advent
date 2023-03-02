@@ -14,6 +14,9 @@ struct Args {
 
     #[arg(long)]
     part2: bool,
+
+    #[arg(long)]
+    shape2: bool,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -100,6 +103,214 @@ enum Face {
 impl Map {
     fn initial_pos(&self) -> (usize, usize) {
         (self.rows[0].offset, 0)
+    }
+
+    fn face2(&self, pos: (usize, usize)) -> Face {
+        let (x, y) = pos;
+        let face_size = self.rows.len() / 4;
+        let latitude = y / face_size;
+        let longitude = x / face_size;
+
+        /*
+         *   TR
+         *   F
+         *  LD
+         *  B
+         */
+        match (latitude, longitude) {
+            (0, 1) => Face::Top,
+            (0, 2) => Face::Right,
+            (1, 1) => Face::Front,
+            (2, 0) => Face::Left,
+            (2, 1) => Face::Down,
+            (3, 0) => Face::Back,
+            _ => panic!("bad face: {}, {}", latitude, longitude),
+        }
+    }
+
+    /*
+            1A112B22
+            C111222D
+            11112222
+            111122E2
+            3333
+            F333
+            333E
+            3333
+        4F445555
+        44445555
+        C444555D
+        444455G5
+        6666
+        A666
+        666G
+        6B66
+    */
+
+    fn wrap_right2(&self, pos: (usize, usize)) -> Option<((usize, usize), Orientation)> {
+        let face_size = self.rows.len() / 4;
+        let (x, y) = pos;
+        match self.face2(pos) {
+            // D
+            Face::Right => {
+                if x == face_size * 3 - 1 {
+                    Some((
+                        ((face_size * 2) - 1, (face_size * 3) - (y + 1)),
+                        Orientation::Left,
+                    ))
+                } else {
+                    None
+                }
+            }
+            // E
+            Face::Front => {
+                if x == face_size * 2 - 1 {
+                    Some(((face_size + y, face_size - 1), Orientation::Up))
+                } else {
+                    None
+                }
+            }
+            // D
+            Face::Down => {
+                if x == face_size * 2 - 1 {
+                    Some((
+                        ((face_size * 3 - 1), (face_size * 3 - 1) - y),
+                        Orientation::Left,
+                    ))
+                } else {
+                    None
+                }
+            }
+            // G
+            Face::Back => {
+                if x == face_size - 1 {
+                    Some((
+                        (face_size + (y - (face_size * 3)), (face_size * 3) - 1),
+                        Orientation::Up,
+                    ))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn wrap_left2(&self, pos: (usize, usize)) -> Option<((usize, usize), Orientation)> {
+        let face_size = self.rows.len() / 4;
+        let (x, y) = pos;
+        match self.face2(pos) {
+            // C
+            Face::Top => {
+                if x == face_size {
+                    Some(((0, (face_size * 3 - 1) - y), Orientation::Right))
+                } else {
+                    None
+                }
+            }
+            // F
+            Face::Front => {
+                if x == face_size {
+                    Some(((y - face_size, face_size * 2), Orientation::Down))
+                } else {
+                    None
+                }
+            }
+            // C
+            Face::Left => {
+                if x == 0 {
+                    Some(((face_size, (face_size * 3 - 1) - y), Orientation::Right))
+                } else {
+                    None
+                }
+            }
+            // A
+            Face::Back => {
+                if x == 0 {
+                    Some((((y - (face_size * 3)) + face_size, 0), Orientation::Down))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn wrap_up2(&self, pos: (usize, usize)) -> Option<((usize, usize), Orientation)> {
+        let face_size = self.rows.len() / 4;
+        let (x, y) = pos;
+        match self.face2(pos) {
+            // A
+            Face::Top => {
+                if y == 0 {
+                    Some(((0, (x - face_size) + (face_size * 3)), Orientation::Right))
+                } else {
+                    None
+                }
+            }
+            // B
+            Face::Right => {
+                if y == 0 {
+                    Some(((x - (face_size * 2), (face_size * 4) - 1), Orientation::Up))
+                } else {
+                    None
+                }
+            }
+            // F
+            Face::Left => {
+                if y == face_size * 2 {
+                    Some(((face_size, face_size + x), Orientation::Right))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn wrap_down2(&self, pos: (usize, usize)) -> Option<((usize, usize), Orientation)> {
+        let face_size = self.rows.len() / 4;
+        let (x, y) = pos;
+        match self.face2(pos) {
+            // E
+            Face::Right => {
+                if y == face_size - 1 {
+                    Some(((face_size * 2 - 1, x - face_size), Orientation::Left))
+                } else {
+                    None
+                }
+            }
+            // G
+            Face::Down => {
+                if y == face_size * 3 - 1 {
+                    Some(((face_size - 1, x + face_size * 2), Orientation::Left))
+                } else {
+                    None
+                }
+            }
+            // B
+            Face::Back => {
+                if y == face_size * 4 - 1 {
+                    Some(((x + face_size * 2, 0), Orientation::Down))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn wrap2(
+        &self,
+        pos: (usize, usize),
+        dir: &Orientation,
+    ) -> Option<((usize, usize), Orientation)> {
+        match dir {
+            Orientation::Up => self.wrap_up2(pos),
+            Orientation::Down => self.wrap_down2(pos),
+            Orientation::Left => self.wrap_left2(pos),
+            Orientation::Right => self.wrap_right2(pos),
+        }
     }
 
     fn face(&self, pos: (usize, usize)) -> Face {
@@ -320,12 +531,17 @@ impl Map {
         &self,
         pos: (usize, usize),
         dir: &Orientation,
+        shape2: bool,
     ) -> Option<((usize, usize), Orientation)> {
-        match dir {
-            Orientation::Up => self.wrap_up(pos),
-            Orientation::Down => self.wrap_down(pos),
-            Orientation::Left => self.wrap_left(pos),
-            Orientation::Right => self.wrap_right(pos),
+        if shape2 {
+            self.wrap2(pos, dir)
+        } else {
+            match dir {
+                Orientation::Up => self.wrap_up(pos),
+                Orientation::Down => self.wrap_down(pos),
+                Orientation::Left => self.wrap_left(pos),
+                Orientation::Right => self.wrap_right(pos),
+            }
         }
     }
 
@@ -334,11 +550,12 @@ impl Map {
         pos: (usize, usize),
         dir: &Orientation,
         dist: i64,
+        shape2: bool,
     ) -> ((usize, usize), Orientation) {
         let mut pos = pos;
         let mut dir = *dir;
         for _ in 0..dist {
-            let (new_pos, new_dir) = self.wrap(pos, &dir).unwrap_or_else(|| match dir {
+            let (new_pos, new_dir) = self.wrap(pos, &dir, shape2).unwrap_or_else(|| match dir {
                 Orientation::Up => ((pos.0, pos.1 - 1), Orientation::Up),
                 Orientation::Down => ((pos.0, pos.1 + 1), Orientation::Down),
                 Orientation::Left => ((pos.0 - 1, pos.1), Orientation::Left),
@@ -483,9 +700,10 @@ impl Map {
         dir: &Orientation,
         dist: i64,
         part2: bool,
+        shape2: bool,
     ) -> ((usize, usize), Orientation) {
         if part2 {
-            self.walk2(pos, dir, dist)
+            self.walk2(pos, dir, dist, shape2)
         } else {
             self.walk1(pos, dir, dist)
         }
@@ -609,7 +827,7 @@ fn process(args: &Args) -> Result<()> {
         }
         match step {
             Instruction::Forward(dist) => {
-                (pos, dir) = map.walk(pos, &dir, dist, args.part2);
+                (pos, dir) = map.walk(pos, &dir, dist, args.part2, args.shape2);
             }
             Instruction::Right => {
                 dir = dir.turn_right();
@@ -676,7 +894,49 @@ mod tests {
         ];
         for (i, case) in cases.iter().enumerate() {
             let (start_x, start_y, start_dir, exp_x, exp_y, exp_dir) = case;
-            let ((act_x, act_y), act_dir) = m.walk((*start_x, *start_y), start_dir, 1, true);
+            let ((act_x, act_y), act_dir) = m.walk((*start_x, *start_y), start_dir, 1, true, false);
+            println!(
+                "case {}: walking from ({}, {}) {:?}: = ({}, {}) {:?}; want ({} {}) {:?};",
+                i, start_x, start_y, &start_dir, act_x, act_y, &act_dir, exp_x, exp_y, &exp_dir,
+            );
+            assert_eq!(act_x, *exp_x);
+            assert_eq!(act_y, *exp_y);
+            assert_eq!(act_dir, *exp_dir);
+        }
+    }
+
+    #[test]
+    fn test_shape2() {
+        let (m, _) = read_input("./empty4x4_2.txt", true).unwrap();
+        assert_eq!(m.rows.len(), 16);
+
+        let cases: Vec<(usize, usize, Orientation, usize, usize, Orientation)> = vec![
+            (4, 0, Orientation::Right, 5, 0, Orientation::Right),
+            // A
+            (5, 0, Orientation::Up, 0, 13, Orientation::Right),
+            (0, 13, Orientation::Left, 5, 0, Orientation::Down),
+            // B
+            (9, 0, Orientation::Up, 1, 15, Orientation::Up),
+            (1, 15, Orientation::Down, 9, 0, Orientation::Down),
+            // C
+            (4, 1, Orientation::Left, 0, 10, Orientation::Right),
+            (0, 10, Orientation::Left, 4, 1, Orientation::Right),
+            // D
+            (11, 1, Orientation::Right, 7, 10, Orientation::Left),
+            (7, 10, Orientation::Right, 11, 1, Orientation::Left),
+            // E
+            (10, 3, Orientation::Down, 7, 6, Orientation::Left),
+            (7, 6, Orientation::Right, 10, 3, Orientation::Up),
+            // F
+            (4, 5, Orientation::Left, 1, 8, Orientation::Down),
+            (1, 8, Orientation::Up, 4, 5, Orientation::Right),
+            // G
+            (6, 11, Orientation::Down, 3, 14, Orientation::Left),
+            (3, 14, Orientation::Right, 6, 11, Orientation::Up),
+        ];
+        for (i, case) in cases.iter().enumerate() {
+            let (start_x, start_y, start_dir, exp_x, exp_y, exp_dir) = case;
+            let ((act_x, act_y), act_dir) = m.walk((*start_x, *start_y), start_dir, 1, true, true);
             println!(
                 "case {}: walking from ({}, {}) {:?}: = ({}, {}) {:?}; want ({} {}) {:?};",
                 i, start_x, start_y, &start_dir, act_x, act_y, &act_dir, exp_x, exp_y, &exp_dir,
