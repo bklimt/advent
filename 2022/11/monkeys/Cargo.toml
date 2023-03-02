@@ -10,3 +10,4 @@ clap = { version = "4.0.25", features = ["derive"] }
 thiserror = "1.0.37"
 itertools = "0.10.5"
 anyhow = "1.0"
+num-bigint = "0.4.3"
