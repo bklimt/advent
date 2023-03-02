@@ -11,6 +11,9 @@ struct Args {
 
     #[arg(long)]
     test: bool,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 struct Monkey {
@@ -149,7 +152,8 @@ fn process(args: Args) -> Result<()> {
         init_monkeys()
     };
 
-    for round in 1..=20 {
+    let rounds = if args.part2 { 10000 } else { 20 };
+    for round in 1..=rounds {
         for i in 0..monkeys.len() {
             if args.debug {
                 println!("");
@@ -165,8 +169,8 @@ fn process(args: Args) -> Result<()> {
                 if args.debug {
                     println!("    Worry level is op'd to {}.", worry);
                 }
-                let worry = worry / 3;
-                if args.debug {
+                let worry = if args.part2 { worry } else { worry / 3 };
+                if args.debug && !args.part2 {
                     println!(
                         "    Monkey gets bored with item. Worry level is divided by 3 to {}.",
                         worry
