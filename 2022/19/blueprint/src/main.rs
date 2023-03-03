@@ -280,7 +280,7 @@ impl Blueprint {
             }
 
             let best_possible_score = plan.best_possible_score_at(max_time);
-            if best_possible_score < best {
+            if best_possible_score <= best {
                 continue;
             }
 
@@ -349,7 +349,7 @@ fn process(args: &Args) -> Result<()> {
         println!("best = {}", best);
         let quality = blueprint.id * best;
         total += quality;
-        product *= quality;
+        product *= best;
     }
     if args.part2 {
         println!("ans = {}", product);
