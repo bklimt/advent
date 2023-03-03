@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -15,6 +15,9 @@ struct Args {
 
     #[arg(long)]
     max_time: i64,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -100,14 +103,12 @@ impl Inventory {
     }
 }
 
-struct Recipe {
-    part: Part,
-    cost: Inventory,
-}
-
 struct Blueprint {
     id: i64,
-    recipes: HashMap<Part, Recipe>,
+    ore: Inventory,
+    clay: Inventory,
+    obsidian: Inventory,
+    geode: Inventory,
 }
 
 fn parse_ingredient(s: &str) -> Result<(i64, Part)> {
@@ -126,7 +127,7 @@ fn parse_ingredient(s: &str) -> Result<(i64, Part)> {
     Ok((amount, Part::parse(s)?))
 }
 
-fn parse_recipe(s: &str) -> Result<Recipe> {
+fn parse_recipe(s: &str) -> Result<(Part, Inventory)> {
     let s = s
         .strip_prefix("Each ")
         .ok_or_else(|| anyhow!("missing Each: {}", s))?;
@@ -153,10 +154,7 @@ fn parse_recipe(s: &str) -> Result<Recipe> {
         }
     }
 
-    Ok(Recipe {
-        part: Part::parse(mineral)?,
-        cost,
-    })
+    Ok((Part::parse(mineral)?, cost))
 }
 
 fn parse_line(s: &str, debug: bool) -> Result<Blueprint> {
@@ -174,21 +172,31 @@ fn parse_line(s: &str, debug: bool) -> Result<Blueprint> {
         .parse::<i64>()
         .with_context(|| anyhow!("invalid number: {}", sid))?;
 
-    let mut recipes = HashMap::new();
-
     if debug {
         println!("Blueprint {}:", id);
     }
+    let mut blueprint = Blueprint {
+        id,
+        ore: Inventory::new(),
+        clay: Inventory::new(),
+        obsidian: Inventory::new(),
+        geode: Inventory::new(),
+    };
     for sentence in s.split('.') {
         if sentence.len() == 0 {
             continue;
         }
         let sentence = sentence.trim();
-        let recipe = parse_recipe(sentence)?;
-        recipes.insert(recipe.part.clone(), recipe);
+        let (part, cost) = parse_recipe(sentence)?;
+        match part {
+            Part::Ore => blueprint.ore = cost,
+            Part::Clay => blueprint.clay = cost,
+            Part::Obsidian => blueprint.obsidian = cost,
+            Part::Geode => blueprint.geode = cost,
+        }
     }
 
-    Ok(Blueprint { id, recipes })
+    Ok(blueprint)
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -218,11 +226,11 @@ impl Plan {
         }
     }
 
-    fn build(&self, recipe: &Recipe) -> Option<Plan> {
-        if let Some(new_inv) = self.inventory.subtract(&recipe.cost) {
+    fn build(&self, part: &Part, cost: &Inventory) -> Option<Plan> {
+        if let Some(new_inv) = self.inventory.subtract(cost) {
             Some(Plan {
                 inventory: new_inv.add(&self.robots),
-                robots: self.robots.add_part(&recipe.part),
+                robots: self.robots.add_part(part),
                 time: self.time + 1,
             })
         } else {
@@ -234,6 +242,13 @@ impl Plan {
         self.inventory.geode + self.robots.geode * (time - self.time)
     }
 
+    fn best_possible_score_at(&self, time: i64) -> i64 {
+        let duration = time - self.time;
+        let total_from_new_robots = (duration * (duration - 1)) / 2;
+        let total_from_existing_robots = self.robots.geode * duration;
+        self.inventory.geode + total_from_new_robots + total_from_existing_robots
+    }
+
     fn to_string(&self) -> String {
         format!(
             "Plan{{ inv:[{:?}], robots:[{:?}], time:{} }}",
@@ -242,28 +257,29 @@ impl Plan {
     }
 }
 
-fn best_possible_amount(initial: i64, robots: i64, time: i64) -> i64 {
-    let mut total = initial;
-    let mut robots = robots;
-    for _ in 0..time {
-        total = total + robots;
-        robots = robots + 1;
-    }
-    total
-}
-
 impl Blueprint {
+    fn recipe(&self, part: &Part) -> &Inventory {
+        match part {
+            Part::Ore => &self.ore,
+            Part::Clay => &self.clay,
+            Part::Obsidian => &self.obsidian,
+            Part::Geode => &self.geode,
+        }
+    }
+
     fn search(&self, max_time: i64, debug: bool) -> i64 {
+        let mut max_t = 0;
         let mut best = 0;
         let mut seen = HashSet::new();
         let mut q = VecDeque::new();
         q.push_back(Plan::new());
         while let Some(plan) = q.pop_front() {
-            let best_possible_score = best_possible_amount(
-                plan.inventory.geode,
-                plan.robots.geode,
-                max_time - plan.time,
-            );
+            if plan.time > max_t {
+                max_t = plan.time;
+                println!("  t = {}", max_t);
+            }
+
+            let best_possible_score = plan.best_possible_score_at(max_time);
             if best_possible_score < best {
                 continue;
             }
@@ -283,9 +299,9 @@ impl Blueprint {
 
             if plan.time < max_time {
                 q.push_back(plan.next());
-
                 for part in ALL_PARTS {
-                    if let Some(new_plan) = plan.build(self.recipes.get(part).unwrap()) {
+                    let recipe = self.recipe(part);
+                    if let Some(new_plan) = plan.build(part, recipe) {
                         q.push_back(new_plan);
                     }
                 }
@@ -322,15 +338,24 @@ fn read_input(path: &str, debug: bool) -> Result<Vec<Blueprint>> {
 
 fn process(args: &Args) -> Result<()> {
     let mut total = 0;
+    let mut product = 1;
     let blueprints = read_input(&args.input, args.debug)?;
     for blueprint in blueprints.iter() {
+        if args.part2 && blueprint.id > 3 {
+            continue;
+        }
         println!("Trying blueprint {}...", blueprint.id);
         let best = blueprint.search(args.max_time, args.debug);
         println!("best = {}", best);
         let quality = blueprint.id * best;
         total += quality;
+        product *= quality;
     }
-    println!("ans = {}", total);
+    if args.part2 {
+        println!("ans = {}", product);
+    } else {
+        println!("ans = {}", total);
+    }
     Ok(())
 }
 
