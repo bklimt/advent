@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use itertools::Itertools;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -15,15 +14,15 @@ struct Args {
     debug: bool,
 
     #[arg(long)]
-    max_time: i32,
+    max_time: i64,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 enum Part {
     Ore,
     Clay,
-    Geode,
     Obsidian,
+    Geode,
 }
 
 const ALL_PARTS: [&Part; 4] = [&Part::Ore, &Part::Clay, &Part::Obsidian, &Part::Geode];
@@ -34,32 +33,84 @@ impl Part {
             Ok(Self::Ore)
         } else if s == "clay" {
             Ok(Self::Clay)
-        } else if s == "geode" {
-            Ok(Self::Geode)
         } else if s == "obsidian" {
             Ok(Self::Obsidian)
+        } else if s == "geode" {
+            Ok(Self::Geode)
         } else {
             Err(anyhow!(format!("unknown part: {}", s)))
         };
     }
 }
 
-struct Ingredient {
-    amount: i32,
-    part: Part,
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct Inventory {
+    ore: i64,
+    clay: i64,
+    obsidian: i64,
+    geode: i64,
+}
+
+impl Inventory {
+    fn new() -> Inventory {
+        Inventory {
+            ore: 0,
+            clay: 0,
+            obsidian: 0,
+            geode: 0,
+        }
+    }
+
+    fn with_part(part: &Part) -> Inventory {
+        let mut inv = Inventory::new();
+        match part {
+            Part::Ore => inv.ore = 1,
+            Part::Clay => inv.clay = 1,
+            Part::Obsidian => inv.obsidian = 1,
+            Part::Geode => inv.geode = 1,
+        }
+        inv
+    }
+
+    fn add(&self, other: &Inventory) -> Inventory {
+        Inventory {
+            ore: self.ore + other.ore,
+            clay: self.clay + other.clay,
+            obsidian: self.obsidian + other.obsidian,
+            geode: self.geode + other.geode,
+        }
+    }
+
+    fn add_part(&self, part: &Part) -> Inventory {
+        self.add(&Inventory::with_part(part))
+    }
+
+    fn subtract(&self, other: &Inventory) -> Option<Inventory> {
+        let inv = Inventory {
+            ore: self.ore - other.ore,
+            clay: self.clay - other.clay,
+            obsidian: self.obsidian - other.obsidian,
+            geode: self.geode - other.geode,
+        };
+        if inv.ore >= 0 && inv.clay >= 0 && inv.obsidian >= 0 && inv.geode >= 0 {
+            Some(inv)
+        } else {
+            None
+        }
+    }
 }
 
 struct Recipe {
     part: Part,
-    ingredients: Vec<Ingredient>,
+    cost: Inventory,
 }
 
 struct Blueprint {
-    id: i32,
+    id: i64,
     recipes: HashMap<Part, Recipe>,
 }
 
-fn parse_ingredient(s: &str) -> Result<Ingredient> {
+fn parse_ingredient(s: &str) -> Result<(i64, Part)> {
     let space = s.find(' ').ok_or_else(|| anyhow!("missing space: {}", s))?;
     let (samount, s) = s.split_at(space);
     let s = s
@@ -67,15 +118,12 @@ fn parse_ingredient(s: &str) -> Result<Ingredient> {
         .ok_or_else(|| anyhow!("unable to strip space: {}", s))?;
 
     let amount = samount
-        .parse::<i32>()
+        .parse::<i64>()
         .with_context(|| anyhow!("invalid number: {}", samount))?;
 
     println!("    {} {}", amount, s);
 
-    Ok(Ingredient {
-        amount,
-        part: Part::parse(s)?,
-    })
+    Ok((amount, Part::parse(s)?))
 }
 
 fn parse_recipe(s: &str) -> Result<Recipe> {
@@ -93,19 +141,25 @@ fn parse_recipe(s: &str) -> Result<Recipe> {
 
     println!("  Each {} robot costs:", mineral);
 
-    let mut v = Vec::new();
+    let mut cost = Inventory::new();
     for ingredient in s.split(" and ") {
         let ingredient = ingredient.trim();
-        v.push(parse_ingredient(ingredient)?);
+        let (amount, part) = parse_ingredient(ingredient)?;
+        match part {
+            Part::Ore => cost.ore = amount,
+            Part::Clay => cost.clay = amount,
+            Part::Obsidian => cost.obsidian = amount,
+            Part::Geode => cost.geode = amount,
+        }
     }
 
     Ok(Recipe {
         part: Part::parse(mineral)?,
-        ingredients: v,
+        cost,
     })
 }
 
-fn parse_line(s: &str) -> Result<Blueprint> {
+fn parse_line(s: &str, debug: bool) -> Result<Blueprint> {
     // Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 4 ore. Each obsidian robot costs 4 ore and 18 clay. Each geode robot costs 4 ore and 9 obsidian.
     let s = s
         .strip_prefix("Blueprint ")
@@ -117,12 +171,14 @@ fn parse_line(s: &str) -> Result<Blueprint> {
         .ok_or_else(|| anyhow!("unable to strip ore text: {}", s))?;
 
     let id = sid
-        .parse::<i32>()
+        .parse::<i64>()
         .with_context(|| anyhow!("invalid number: {}", sid))?;
 
     let mut recipes = HashMap::new();
 
-    println!("Blueprint {}:", id);
+    if debug {
+        println!("Blueprint {}:", id);
+    }
     for sentence in s.split('.') {
         if sentence.len() == 0 {
             continue;
@@ -132,158 +188,106 @@ fn parse_line(s: &str) -> Result<Blueprint> {
         recipes.insert(recipe.part.clone(), recipe);
     }
 
-    Ok(Blueprint {
-        id: id,
-        recipes: recipes,
-    })
+    Ok(Blueprint { id, recipes })
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 struct Plan {
     // What's already been produced.
-    inventory: HashMap<Part, i32>,
+    inventory: Inventory,
     // What is produced every new second.
-    robots: HashMap<Part, i32>,
+    robots: Inventory,
     // How much time has passed.
-    time: i32,
+    time: i64,
 }
 
 impl Plan {
     fn new() -> Plan {
-        let mut p = Plan {
-            inventory: HashMap::new(),
-            robots: HashMap::new(),
+        Plan {
+            inventory: Inventory::new(),
+            robots: Inventory::with_part(&Part::Ore),
             time: 0,
-        };
-        p.robots.insert(Part::Ore, 1);
-        p
+        }
     }
 
-    fn score_at(&self, time: i32) -> i32 {
-        let current_geodes = *self.inventory.get(&Part::Geode).unwrap_or(&0);
-        let geode_rate = *self.robots.get(&Part::Geode).unwrap_or(&0);
-        current_geodes + geode_rate * (time - self.time)
+    fn next(&self) -> Plan {
+        Plan {
+            inventory: self.inventory.add(&self.robots),
+            robots: self.robots.clone(),
+            time: self.time + 1,
+        }
+    }
+
+    fn build(&self, recipe: &Recipe) -> Option<Plan> {
+        if let Some(new_inv) = self.inventory.subtract(&recipe.cost) {
+            Some(Plan {
+                inventory: new_inv.add(&self.robots),
+                robots: self.robots.add_part(&recipe.part),
+                time: self.time + 1,
+            })
+        } else {
+            None
+        }
+    }
+
+    fn score_at(&self, time: i64) -> i64 {
+        self.inventory.geode + self.robots.geode * (time - self.time)
     }
 
     fn to_string(&self) -> String {
-        let inv_str = self
-            .inventory
-            .iter()
-            .map(|(k, v)| format!("{:?}:{}", k, v))
-            .join(",");
-
-        let rob_str = self
-            .robots
-            .iter()
-            .map(|(k, v)| format!("{:?}:{}", k, v))
-            .join(",");
-
         format!(
-            "Plan{{ inv:[{}], robots:[{}], time:{} }}",
-            inv_str, rob_str, self.time,
+            "Plan{{ inv:[{:?}], robots:[{:?}], time:{} }}",
+            self.inventory, self.robots, self.time,
         )
     }
 }
 
-// Does integer division by taking the ceil of the result.
-fn ceil_div(a: i32, b: i32) -> i32 {
-    (a + b - 1) / b
+fn best_possible_amount(initial: i64, robots: i64, time: i64) -> i64 {
+    let mut total = initial;
+    let mut robots = robots;
+    for _ in 0..time {
+        total = total + robots;
+        robots = robots + 1;
+    }
+    total
 }
 
 impl Blueprint {
-    fn extend(&self, plan: &Plan, part: &Part, max_time: i32, debug: bool) -> Option<Plan> {
-        if plan.time >= max_time {
-            return None;
-        }
-        if debug {
-            println!("Considering extending {} with {:?}", plan.to_string(), part);
-        }
-
-        // How long would it take to get the inventory to build that?
-        let mut wait = 1;
-        let recipe = self.recipes.get(part).unwrap();
-        for ingredient in recipe.ingredients.iter() {
-            let have = *plan.inventory.get(&ingredient.part).unwrap_or(&0);
-            if have >= ingredient.amount {
-                // We already have enough of this ingredient.
-                continue;
-            }
-            let rate = *plan.robots.get(&ingredient.part).unwrap_or(&0);
-            if rate == 0 {
-                // We aren't making this yet, so we'll never have enough by waiting.
-                return None;
-            }
-            let new_wait = ceil_div(ingredient.amount - have, rate);
-            if plan.time + new_wait >= max_time {
-                // It would take longer than we have.
-                return None;
-            }
-            wait = wait.max(new_wait);
-        }
-
-        if debug {
-            println!("can build {:?} robot after {} seconds", part, wait);
-        }
-
-        // The 1 is the time to build the robot.
-        let mut new_plan = Plan {
-            inventory: plan.inventory.clone(),
-            robots: plan.robots.clone(),
-            time: plan.time + wait,
-        };
-
-        // Update the inventory first.
-        for part in ALL_PARTS {
-            let previous = *new_plan.inventory.get(part).unwrap_or(&0);
-            let rate = *new_plan.robots.get(part).unwrap_or(&0);
-            let new_amount = previous + rate * wait;
-            if new_amount == 0 {
-                new_plan.inventory.remove(&part);
-            } else {
-                new_plan.inventory.insert(part.clone(), new_amount);
-            }
-        }
-
-        // Now remove the resources used to build the robot.
-        for ingredient in recipe.ingredients.iter() {
-            let previous = *new_plan.inventory.get(&ingredient.part).unwrap_or(&0);
-            let needed = ingredient.amount;
-            if needed > previous {
-                panic!("recipe needed more than it had");
-            }
-            if previous - needed == 0 {
-                new_plan.inventory.remove(&ingredient.part);
-            } else {
-                new_plan
-                    .inventory
-                    .insert(ingredient.part.clone(), previous - needed);
-            }
-        }
-
-        // Finally, add the new robot.
-        new_plan
-            .robots
-            .insert(part.clone(), 1 + *new_plan.robots.get(part).unwrap_or(&0));
-
-        if debug {
-            println!("New plan is {}", new_plan.to_string());
-        }
-
-        Some(new_plan)
-    }
-
-    fn search(&self, max_time: i32, debug: bool) -> i32 {
+    fn search(&self, max_time: i64, debug: bool) -> i64 {
         let mut best = 0;
+        let mut seen = HashSet::new();
         let mut q = VecDeque::new();
         q.push_back(Plan::new());
         while let Some(plan) = q.pop_front() {
+            let best_possible_score = best_possible_amount(
+                plan.inventory.geode,
+                plan.robots.geode,
+                max_time - plan.time,
+            );
+            if best_possible_score < best {
+                continue;
+            }
+
+            let mut hash_plan = plan.clone();
+            hash_plan.time = 0;
+            if seen.contains(&hash_plan) {
+                continue;
+            }
+            seen.insert(hash_plan);
+
             let score = plan.score_at(max_time);
             if debug {
                 println!("{:10} {} -> {}", q.len(), plan.to_string(), score);
             }
             best = best.max(score);
-            for part in ALL_PARTS {
-                if let Some(new_plan) = self.extend(&plan, part, max_time, debug) {
-                    q.push_back(new_plan);
+
+            if plan.time < max_time {
+                q.push_back(plan.next());
+
+                for part in ALL_PARTS {
+                    if let Some(new_plan) = plan.build(self.recipes.get(part).unwrap()) {
+                        q.push_back(new_plan);
+                    }
                 }
             }
         }
@@ -311,19 +315,22 @@ fn read_input(path: &str, debug: bool) -> Result<Vec<Blueprint>> {
             println!("line: {}", line);
         }
 
-        v.push(parse_line(line)?);
+        v.push(parse_line(line, debug)?);
     }
     Ok(v)
 }
 
 fn process(args: &Args) -> Result<()> {
-    println!("reading input...");
+    let mut total = 0;
     let blueprints = read_input(&args.input, args.debug)?;
     for blueprint in blueprints.iter() {
         println!("Trying blueprint {}...", blueprint.id);
-        let ans = blueprint.search(args.max_time, args.debug);
-        println!("ans = {}", ans);
+        let best = blueprint.search(args.max_time, args.debug);
+        println!("best = {}", best);
+        let quality = blueprint.id * best;
+        total += quality;
     }
+    println!("ans = {}", total);
     Ok(())
 }
 
