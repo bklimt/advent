@@ -12,6 +12,9 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 #[derive(Debug)]
@@ -118,11 +121,139 @@ fn compute(m: &HashMap<String, Op>, s: &str, debug: bool) -> i64 {
     }
 }
 
+fn compute2(m: &HashMap<String, Op>, s: &str, debug: bool) -> Option<i64> {
+    if debug {
+        println!("looking up {}", s);
+    }
+    if s == "humn" {
+        None
+    } else {
+        match m.get(s).unwrap() {
+            Op::Number(n) => Some(*n),
+            Op::Add(x, y) => {
+                if let Some(x) = compute2(m, x.as_str(), debug) {
+                    if let Some(y) = compute2(m, y.as_str(), debug) {
+                        Some(x + y)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Op::Subtract(x, y) => {
+                if let Some(x) = compute2(m, x.as_str(), debug) {
+                    if let Some(y) = compute2(m, y.as_str(), debug) {
+                        Some(x - y)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Op::Multiply(x, y) => {
+                if let Some(x) = compute2(m, x.as_str(), debug) {
+                    if let Some(y) = compute2(m, y.as_str(), debug) {
+                        Some(x * y)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Op::Divide(x, y) => {
+                if let Some(x) = compute2(m, x.as_str(), debug) {
+                    if let Some(y) = compute2(m, y.as_str(), debug) {
+                        Some(x / y)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
+fn solve(m: &HashMap<String, Op>, k: &str, v: i64, debug: bool) -> Result<i64> {
+    if k == "humn" {
+        return Ok(v);
+    }
+
+    let node = m.get(k).ok_or_else(|| anyhow!("unable to find {}", k))?;
+    let (left, right) = match node {
+        Op::Number(_) => return Err(anyhow!("found number when solving")),
+        Op::Add(x, y) => (x, y),
+        Op::Subtract(x, y) => (x, y),
+        Op::Multiply(x, y) => (x, y),
+        Op::Divide(x, y) => (x, y),
+    };
+
+    let root_alt = Op::Subtract(left.clone(), right.clone());
+    let node = if k == "root" { &root_alt } else { node };
+
+    let left_result = compute2(m, left.as_str(), debug);
+    let right_result = compute2(m, right.as_str(), debug);
+
+    if debug {
+        println!(
+            "Trying to solve {} = {} = {} where {}={:?} and {}={:?}",
+            k,
+            node.to_string(),
+            v,
+            left,
+            left_result,
+            right,
+            right_result
+        );
+    }
+
+    if left_result.is_some() && right_result.is_some() {
+        println!("humn doesn't exist in either branch");
+        return Err(anyhow!("humn doesn't exist in either branch"));
+    }
+
+    if let Some(left_value) = left_result {
+        let expected = match node {
+            Op::Number(_) => panic!("unreachable"),
+            Op::Add(_, _) => v - left_value,
+            Op::Subtract(_, _) => left_value - v,
+            Op::Multiply(_, _) => v / left_value,
+            Op::Divide(_, _) => left_value / v,
+        };
+        solve(m, right, expected, debug)
+    } else if let Some(right_value) = right_result {
+        let expected = match node {
+            Op::Number(_) => panic!("unreachable"),
+            Op::Add(_, _) => v - right_value,
+            Op::Subtract(_, _) => v + right_value,
+            Op::Multiply(_, _) => v / right_value,
+            Op::Divide(_, _) => v * right_value,
+        };
+        solve(m, left, expected, debug)
+    } else {
+        println!("humn exists in two branches");
+        Err(anyhow!("humn exists in two branches"))
+    }
+}
+
+fn part2(m: &HashMap<String, Op>, debug: bool) -> Result<i64> {
+    solve(m, "root", 0, debug)
+}
+
 fn process(args: &Args) -> Result<()> {
     println!("reading input...");
     let m = read_input(&args.input, args.debug)?;
-    let ans = compute(&m, "root", args.debug);
-    println!("ans = {}", ans);
+    if args.part2 {
+        let ans = part2(&m, args.debug)?;
+        println!("ans = {}", ans);
+    } else {
+        let ans = compute(&m, "root", args.debug);
+        println!("ans = {}", ans);
+    }
     Ok(())
 }
 
