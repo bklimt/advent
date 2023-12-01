@@ -1,6 +1,9 @@
 bazel-*
 target
-bin/
+2019/bin/
+2020/bin/
+2021/bin/
+2022/bin/
 obj/
 .vscode
 .DS_Store
