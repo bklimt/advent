@@ -1,0 +1,114 @@
+[package]
+name = "aoc2022"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "calories"
+path = "01/calories/src/main.rs"
+
+[[bin]]
+name = "rochambeau"
+path = "02/rochambeau/src/main.rs"
+
+[[bin]]
+name = "rucksack"
+path = "03/rucksack/src/main.rs"
+
+[[bin]]
+name = "cleanup"
+path = "04/cleanup/src/main.rs"
+
+[[bin]]
+name = "stacks"
+path = "05/stacks/src/main.rs"
+
+[[bin]]
+name = "streams"
+path = "06/streams/src/main.rs"
+
+[[bin]]
+name = "disk"
+path = "07/disk/src/main.rs"
+
+[[bin]]
+name = "trees"
+path = "08/trees/src/main.rs"
+
+[[bin]]
+name = "rope"
+path = "09/rope/src/main.rs"
+
+[[bin]]
+name = "tube"
+path = "10/tube/src/main.rs"
+
+[[bin]]
+name = "monkeys"
+path = "11/monkeys/src/main.rs"
+
+[[bin]]
+name = "climb"
+path = "12/climb/src/main.rs"
+
+[[bin]]
+name = "distress"
+path = "13/distress/src/main.rs"
+
+[[bin]]
+name = "sand"
+path = "14/sand/src/main.rs"
+
+[[bin]]
+name = "beacon"
+path = "15/beacon/src/main.rs"
+
+[[bin]]
+name = "valves"
+path = "16/valves/src/main.rs"
+
+[[bin]]
+name = "rocks"
+path = "17/rocks/src/main.rs"
+
+[[bin]]
+name = "lava"
+path = "18/lava/src/main.rs"
+
+[[bin]]
+name = "blueprint"
+path = "19/blueprint/src/main.rs"
+
+[[bin]]
+name = "mix"
+path = "20/mix/src/main.rs"
+
+[[bin]]
+name = "monkeys2"
+path = "21/monkeys2/src/main.rs"
+
+[[bin]]
+name = "map"
+path = "22/map/src/main.rs"
+
+[[bin]]
+name = "elves"
+path = "23/elves/src/main.rs"
+
+[[bin]]
+name = "blizzard"
+path = "24/blizzard/src/main.rs"
+
+[[bin]]
+name = "heat"
+path = "25/heat/src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.4.10", features = ["derive"] }
+itertools = "0.10.5"
+num-bigint = "0.4.4"
+priority-queue = "1.3.2"
+rand = "0.8.5"
+thiserror = "1.0.50"
+
