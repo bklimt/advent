@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::option::Option;
@@ -34,14 +34,14 @@ struct PartLoc {
 #[derive(Debug)]
 struct Board {
     nums: Vec<NumLoc>,
-    parts: HashSet<PartLoc>,
+    parts: HashMap<PartLoc, char>,
 }
 
 impl Board {
     fn new() -> Self {
         Board {
             nums: Vec::new(),
-            parts: HashSet::new(),
+            parts: HashMap::new(),
         }
     }
 
@@ -69,10 +69,13 @@ impl Board {
                         self.nums.push(current_num.take().unwrap());
                     }
                     if c != '.' {
-                        self.parts.insert(PartLoc {
-                            row: row,
-                            col: col as i32,
-                        });
+                        self.parts.insert(
+                            PartLoc {
+                                row: row,
+                                col: col as i32,
+                            },
+                            c,
+                        );
                     }
                 }
             }
@@ -87,7 +90,7 @@ impl Board {
     fn is_num_near_part(&self, num: &NumLoc) -> bool {
         for row in num.row - 1..=num.row + 1 {
             for col in num.col_start - 1..num.col_end + 1 {
-                if self.parts.contains(&PartLoc { row, col }) {
+                if self.parts.contains_key(&PartLoc { row, col }) {
                     return true;
                 }
             }
@@ -100,6 +103,47 @@ impl Board {
         for num in self.nums.iter() {
             if self.is_num_near_part(&num) {
                 ans += num.num;
+            }
+        }
+        ans
+    }
+
+    fn get_gears_near_num(&self, num: &NumLoc) -> Vec<PartLoc> {
+        let mut v = Vec::new();
+        for row in num.row - 1..=num.row + 1 {
+            for col in num.col_start - 1..num.col_end + 1 {
+                if let Some(c) = self.parts.get(&PartLoc { row, col }) {
+                    if *c == '*' {
+                        v.push(PartLoc { row, col });
+                    }
+                }
+            }
+        }
+        v
+    }
+
+    fn part2(&self) -> i32 {
+        let mut gears: HashMap<PartLoc, Vec<i32>> = HashMap::new();
+        for num in self.nums.iter() {
+            let v = self.get_gears_near_num(num);
+            for gear in v.iter() {
+                if !gears.contains_key(gear) {
+                    gears.insert(
+                        PartLoc {
+                            row: gear.row,
+                            col: gear.col,
+                        },
+                        Vec::new(),
+                    );
+                }
+                gears.get_mut(gear).unwrap().push(num.num);
+            }
+        }
+
+        let mut ans = 0;
+        for (_, nums) in gears {
+            if nums.len() == 2 {
+                ans += nums[0] * nums[1];
             }
         }
         ans
@@ -132,6 +176,7 @@ fn read_input(path: &str, _debug: bool) -> Result<Board> {
 fn process(args: &Args) -> Result<()> {
     let board = read_input(&args.input, args.debug)?;
     println!("ans1: {}", board.part1());
+    println!("ans2: {}", board.part2());
     Ok(())
 }
 
