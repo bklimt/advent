@@ -56,15 +56,6 @@ impl MapRange {
         }
     }
 
-    /*
-    fn map(&self, src: i64) -> Option<i64> {
-        if src < self.src.start || src >= self.src.end() {
-            return None;
-        }
-        Some(src + self.dst_offset)
-    }
-    */
-
     fn from_str(line: &str) -> Result<Self> {
         let parts = parse_num_list(line)?;
         if parts.len() != 3 {
@@ -124,13 +115,10 @@ impl Map {
             {
                 Ok(i) => {
                     // The ranges start at the same point.
-                    if current.end() <= self.ranges[i].src.end() {
-                        // The src ends first.
-                        (self.ranges[i].dst_offset, current.len)
-                    } else {
-                        // The mapping ends first.
-                        (self.ranges[i].dst_offset, self.ranges[i].src.len)
-                    }
+                    (
+                        self.ranges[i].dst_offset,
+                        min(current.len, self.ranges[i].src.len),
+                    )
                 }
                 Err(i) => {
                     if i == 0 {
@@ -153,8 +141,7 @@ impl Map {
                                 (0, current.len)
                             } else {
                                 // The next range starts before the current src ends.
-                                let len = next_start - current.start;
-                                (0, len)
+                                (0, next_start - current.start)
                             }
                         }
                     } else {
