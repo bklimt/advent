@@ -12,6 +12,9 @@ struct Args {
     input: String,
 
     #[arg(long)]
+    part2: bool,
+
+    #[arg(long)]
     debug: bool,
 }
 
@@ -26,6 +29,45 @@ enum HandType {
     FiveOfAKind,
 }
 
+fn compute_handtype(values: [i32; 5]) -> Result<HandType> {
+    // Count how often each card appears in the hand.
+    let mut counts: HashMap<i32, i32> = HashMap::new();
+    let mut jokers = 0;
+    for n in values.iter() {
+        if *n == 1 {
+            jokers += 1;
+        } else {
+            counts.insert(*n, counts.get(n).unwrap_or(&0) + 1);
+        }
+    }
+    let mut counts: Vec<i32> = counts.into_values().collect();
+    counts.sort();
+    counts.reverse();
+
+    let typ = match counts.len() {
+        0 => HandType::FiveOfAKind,
+        1 => HandType::FiveOfAKind,
+        2 => {
+            if counts[0] == 4 - jokers {
+                HandType::FourOfAKind
+            } else {
+                HandType::FullHouse
+            }
+        }
+        3 => {
+            if counts[0] == 3 - jokers {
+                HandType::ThreeOfAKind
+            } else {
+                HandType::TwoPair
+            }
+        }
+        4 => HandType::OnePair,
+        5 => HandType::HighCard,
+        _ => return Err(anyhow!("invalid set size: {}", counts.len())),
+    };
+    Ok(typ)
+}
+
 #[derive(Debug)]
 struct Hand {
     _text: String,
@@ -34,7 +76,7 @@ struct Hand {
 }
 
 impl Hand {
-    fn from_str(text: &str) -> Result<Self> {
+    fn from_str(text: &str, part2: bool) -> Result<Self> {
         if text.len() != 5 {
             return Err(anyhow!("invalid hand: {}", text));
         }
@@ -45,41 +87,20 @@ impl Hand {
                 'A' => 14,
                 'K' => 13,
                 'Q' => 12,
-                'J' => 11,
+                'J' => {
+                    if part2 {
+                        1
+                    } else {
+                        11
+                    }
+                }
                 'T' => 10,
                 '0'..='9' => c.to_digit(10).unwrap() as i32,
                 _ => return Err(anyhow!("invalid card char: {}", c)),
             };
         }
 
-        // Count how often each card appears in the hand.
-        let mut counts: HashMap<i32, i32> = HashMap::new();
-        for n in values.iter() {
-            counts.insert(*n, counts.get(n).unwrap_or(&0) + 1);
-        }
-        let mut counts: Vec<i32> = counts.into_values().collect();
-        counts.sort();
-        counts.reverse();
-        let typ = match counts.len() {
-            1 => HandType::FiveOfAKind,
-            2 => {
-                if counts[0] == 4 {
-                    HandType::FourOfAKind
-                } else {
-                    HandType::FullHouse
-                }
-            }
-            3 => {
-                if counts[0] == 3 {
-                    HandType::ThreeOfAKind
-                } else {
-                    HandType::TwoPair
-                }
-            }
-            4 => HandType::OnePair,
-            5 => HandType::HighCard,
-            _ => return Err(anyhow!("invalid set size: {}", counts.len())),
-        };
+        let typ = compute_handtype(values)?;
 
         let text = text.to_owned();
         Ok(Hand {
@@ -97,9 +118,9 @@ struct Record {
 }
 
 impl Record {
-    fn from_str(line: &str) -> Result<Self> {
+    fn from_str(line: &str, part2: bool) -> Result<Self> {
         Ok(Record {
-            hand: Hand::from_str(&line[..5])?,
+            hand: Hand::from_str(&line[..5], part2)?,
             bid: (&line[6..])
                 .parse()
                 .context(format!("invalid bid: {}", line))?,
@@ -107,7 +128,7 @@ impl Record {
     }
 }
 
-fn read_input(path: &str, _debug: bool) -> Result<Vec<Record>> {
+fn read_input(path: &str, part2: bool, _debug: bool) -> Result<Vec<Record>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
     let mut records = Vec::new();
@@ -123,13 +144,13 @@ fn read_input(path: &str, _debug: bool) -> Result<Vec<Record>> {
             continue;
         }
 
-        records.push(Record::from_str(line)?);
+        records.push(Record::from_str(line, part2)?);
     }
     Ok(records)
 }
 
 fn process(args: &Args) -> Result<()> {
-    let mut records = read_input(&args.input, args.debug)?;
+    let mut records = read_input(&args.input, args.part2, args.debug)?;
 
     records.sort_by_key(|r: &Record| (r.hand.typ as i32, r.hand.values));
 
