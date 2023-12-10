@@ -27,7 +27,7 @@ struct Node {
 }
 
 impl Node {
-    fn from_str(c: char) -> Self {
+    fn from_char(c: char) -> Self {
         Node {
             n: c == '|' || c == 'J' || c == 'L',
             s: c == '|' || c == '7' || c == 'F',
@@ -36,6 +36,44 @@ impl Node {
             d1: None,
             d2: None,
         }
+    }
+
+    fn to_char(&self) -> char {
+        if let Some(d) = self.d() {
+            char::from_digit(d as u32, 36).unwrap_or('#')
+        } else if self.n && self.s && !self.e && !self.w {
+            '|'
+        } else if self.n && self.w && !self.s && !self.e {
+            'J'
+        } else if self.n && self.e && !self.w && !self.s {
+            'L'
+        } else if self.w && self.e && !self.n && !self.s {
+            '-'
+        } else if self.s && self.w && !self.n && !self.e {
+            '7'
+        } else if self.s && self.e && !self.n && !self.w {
+            'F'
+        } else if !self.n && !self.s && !self.w && !self.e {
+            '.'
+        } else {
+            panic!("invalid node: {:?}", self);
+        }
+    }
+
+    fn d(&self) -> Option<i64> {
+        if let Some(d1) = self.d1 {
+            if let Some(d2) = self.d2 {
+                Some(d1.min(d2))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn in_loop(&self) -> bool {
+        self.d().is_some()
     }
 }
 
@@ -63,13 +101,22 @@ impl Input {
                 continue;
             }
 
-            map.push(line.chars().map(Node::from_str).collect());
+            map.push(line.chars().map(Node::from_char).collect());
 
             if let Some(s) = line.find('S') {
                 start = ((map.len() - 1), s);
             }
         }
-        Ok(Input { start, map })
+        let mut input = Input { start, map };
+        input.patch_start();
+        Ok(input)
+    }
+
+    fn print(&self) {
+        for row in self.map.iter() {
+            let line: String = row.iter().map(Node::to_char).collect();
+            println!("{}", line);
+        }
     }
 
     // row-major order
@@ -126,6 +173,49 @@ impl Input {
             return Err(anyhow!("invalid possible start positions: {:?}", possible));
         }
         Ok(possible.into_iter().collect_tuple().expect("len == 2"))
+    }
+
+    fn patch_start(&mut self) {
+        let n = if self.start.0 > 0 {
+            let n = self
+                .get((self.start.0 - 1, self.start.1))
+                .expect("in bounds");
+            n.s
+        } else {
+            false
+        };
+        let s = if self.start.0 < self.map.len() - 1 {
+            let s = self
+                .get((self.start.0 + 1, self.start.1))
+                .expect("in bounds");
+            s.n
+        } else {
+            false
+        };
+        let w = if self.start.1 > 0 {
+            let w = self
+                .get((self.start.0, self.start.1 - 1))
+                .expect("in bounds");
+            w.e
+        } else {
+            false
+        };
+        let e = if self.start.1 < self.map.first().expect("not empty").len() - 1 {
+            let e = self
+                .get((self.start.0, self.start.1 + 1))
+                .expect("in bounds");
+            e.w
+        } else {
+            false
+        };
+
+        let node = self.get_mut(self.start).expect("start is valid");
+        node.n = n;
+        node.s = s;
+        node.e = e;
+        node.w = w;
+        node.d1 = Some(0);
+        node.d2 = Some(0);
     }
 
     fn propagate_distance(&mut self, start: (usize, usize), is_d2: bool) {
@@ -190,35 +280,100 @@ impl Input {
         }
     }
 
-    fn part1(&mut self) -> Result<i64> {
+    fn part1(&mut self, debug: bool) -> Result<i64> {
         let (s1, s2) = self.find_starts()?;
 
         self.propagate_distance(s1, false);
         self.propagate_distance(s2, true);
 
+        if debug {
+            self.print();
+        }
+
         let mut ans: Option<i64> = None;
         for row in self.map.iter() {
             for node in row {
-                if let Some(d1) = node.d1 {
-                    if let Some(d2) = node.d2 {
-                        let d = d1.min(d2);
-                        if let Some(d3) = ans {
-                            ans = Some(d3.max(d));
-                        } else {
-                            ans = Some(d);
-                        }
-                    }
+                if let Some(d) = node.d() {
+                    ans = Some(match ans {
+                        Some(d3) => d3.max(d),
+                        None => d,
+                    });
                 }
             }
         }
 
         Ok(ans.expect("an answer"))
     }
+
+    fn part2(&mut self, _debug: bool) -> usize {
+        let mut total: usize = 0;
+        for row in self.map.iter() {
+            let mut inside = false;
+            let mut above_border = false;
+            let mut below_border = false;
+            for node in row.iter() {
+                if node.in_loop() {
+                    if node.n && node.s {
+                        // |
+                        inside = !inside;
+                    } else if node.w && node.e {
+                        if !above_border && !below_border {
+                            panic!("unexpected -");
+                        }
+                    } else if node.n && node.e {
+                        // L
+                        if above_border || below_border {
+                            panic!("unexpected L");
+                        }
+                        below_border = true;
+                    } else if node.n && node.w {
+                        // J
+                        if below_border {
+                            below_border = false;
+                        } else if above_border {
+                            // F----J
+                            above_border = false;
+                            inside = !inside;
+                        } else {
+                            panic!("saw unexpected J");
+                        }
+                    } else if node.s && node.e {
+                        // F
+                        if above_border || below_border {
+                            panic!("unexpected F");
+                        }
+                        above_border = true;
+                    } else if node.s && node.w {
+                        // 7
+                        if above_border {
+                            above_border = false;
+                        } else if below_border {
+                            // L----7
+                            below_border = false;
+                            inside = !inside;
+                        } else {
+                            panic!("saw unexpected 7");
+                        }
+                    }
+                } else {
+                    if inside {
+                        total += 1;
+                    }
+                }
+            }
+        }
+        total
+    }
 }
 
 fn process(args: &Args) -> Result<()> {
     let mut input = Input::read(&args.input, args.debug)?;
-    println!("ans1: {}", input.part1()?);
+    if args.debug {
+        input.print();
+        println!("");
+    }
+    println!("ans1: {}", input.part1(args.debug)?);
+    println!("ans2: {}", input.part2(args.debug));
     Ok(())
 }
 
