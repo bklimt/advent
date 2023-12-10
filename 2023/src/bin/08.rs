@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use num::integer::lcm;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::option::Option;
