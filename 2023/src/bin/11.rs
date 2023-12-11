@@ -13,6 +13,9 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    expansion: usize,
 }
 
 #[derive(Debug)]
@@ -23,7 +26,7 @@ struct Input {
 }
 
 impl Input {
-    fn read(path: &str, _debug: bool) -> Result<Self> {
+    fn read(path: &str, expansion: usize, _debug: bool) -> Result<Self> {
         let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
         let mut r = BufReader::new(file);
 
@@ -60,20 +63,20 @@ impl Input {
             if !rows_seen.contains(&row) {
                 for galaxy in galaxies.iter_mut() {
                     if galaxy.0 > row {
-                        galaxy.0 += 1;
+                        galaxy.0 += expansion;
                     }
                 }
-                rows += 1;
+                rows += expansion;
             }
         }
         for col in (0..columns).rev() {
             if !columns_seen.contains(&col) {
                 for galaxy in galaxies.iter_mut() {
                     if galaxy.1 > col {
-                        galaxy.1 += 1;
+                        galaxy.1 += expansion;
                     }
                 }
-                columns += 1;
+                columns += expansion;
             }
         }
 
@@ -94,7 +97,7 @@ impl Input {
         }
     }
 
-    fn part1(&self, debug: bool) -> Result<usize> {
+    fn compute(&self, debug: bool) -> Result<usize> {
         let n = self.galaxies.len();
         let mut adj = vec![vec![0usize; n]; n];
 
@@ -139,20 +142,15 @@ impl Input {
 
         Ok(total)
     }
-
-    fn part2(&self, _debug: bool) -> Result<i64> {
-        Ok(0)
-    }
 }
 
 fn process(args: &Args) -> Result<()> {
-    let input = Input::read(&args.input, args.debug)?;
+    let input = Input::read(&args.input, args.expansion, args.debug)?;
     if args.debug {
         input.print();
         println!("");
     }
-    println!("ans1: {}", input.part1(args.debug)?);
-    println!("ans2: {}", input.part2(args.debug)?);
+    println!("ans: {}", input.compute(args.debug)?);
     Ok(())
 }
 
