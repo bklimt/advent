@@ -115,20 +115,6 @@ impl Input {
             }
         }
 
-        // Run Floyd's algorithm.
-        for k in 0..n {
-            for i in 0..n {
-                for j in 0..i {
-                    let d1 = adj[i][j];
-                    let d2 = adj[i][k] + adj[k][j];
-                    if d2 < d1 {
-                        adj[i][j] = d2;
-                        adj[j][i] = d2;
-                    }
-                }
-            }
-        }
-
         // Compute the answer.
         let mut total: usize = 0;
         for i in 0..n {
@@ -145,7 +131,7 @@ impl Input {
 }
 
 fn process(args: &Args) -> Result<()> {
-    let input = Input::read(&args.input, args.expansion, args.debug)?;
+    let input = Input::read(&args.input, args.expansion - 1, args.debug)?;
     if args.debug {
         input.print();
         println!("");
