@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use itertools::Itertools;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write};
 use std::option::Option;
 
 #[derive(Parser, Debug)]
@@ -19,6 +19,20 @@ struct Args {
 struct Record {
     text: String,
     counts: Vec<usize>,
+}
+
+impl Record {
+    fn expand(&self) -> Self {
+        let t = self.text.as_str();
+        let text = vec![t, t, t, t, t].join("?");
+        let mut counts = Vec::new();
+        for _ in 0..5 {
+            for &n in self.counts.iter() {
+                counts.push(n);
+            }
+        }
+        Record { text, counts }
+    }
 }
 
 fn parse_num_list(line: &str) -> Result<Vec<usize>> {
@@ -175,20 +189,33 @@ fn parse_dots(line: &[char], nums: &[usize], debug: bool) -> usize {
     ans
 }
 
+fn process_record(record: &Record, debug: bool) -> usize {
+    let line = record.text.chars().collect_vec();
+    let nums = record.counts.clone();
+    let n = parse_dots(&line[..], &nums[..], false);
+    if debug {
+        println!("{:?} -> {}", record, n);
+        // println!("\n");
+    }
+    n
+}
+
 fn process(args: &Args) -> Result<()> {
     let input = read_input(&args.input, args.debug)?;
-    let mut total = 0usize;
+    let mut total1 = 0usize;
+    let mut total2 = 0usize;
     for record in input.iter() {
-        let line = record.text.chars().collect_vec();
-        let nums = record.counts.clone();
-        let n = parse_dots(&line[..], &nums[..], args.debug);
-        total += n;
-        if args.debug {
-            println!("{:?} -> {}", record, n);
-            println!("\n");
-        }
+        total1 += process_record(record, args.debug);
+
+        let expanded = record.expand();
+        total2 += process_record(&expanded, args.debug);
+
+        // print!(".");
+        // io::stdout().flush().unwrap();
     }
-    println!("ans = {}", total);
+    println!("");
+    println!("ans 1 = {}", total1);
+    println!("ans 2 = {}", total2);
     Ok(())
 }
 
