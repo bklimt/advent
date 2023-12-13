@@ -21,7 +21,7 @@ struct Grid {
     cols: Vec<u64>,
 }
 
-fn find_mirror(v: &Vec<u64>) -> Option<usize> {
+fn find_mirror1(v: &Vec<u64>) -> Option<usize> {
     /*
      * n=10
      *
@@ -62,6 +62,36 @@ fn find_mirror(v: &Vec<u64>) -> Option<usize> {
     None
 }
 
+fn find_mirror2(v: &Vec<u64>) -> Option<usize> {
+    let n = v.len() as i64;
+    for split in 0..(n - 1) {
+        let mut bits_wrong = 0u32;
+        for i in 0..n {
+            let a = split - i;
+            let b = split + i + 1;
+            if a < 0 || b >= n {
+                break;
+            }
+            bits_wrong += (v[a as usize] ^ v[b as usize]).count_ones();
+            if bits_wrong > 1 {
+                break;
+            }
+        }
+        if bits_wrong == 1 {
+            return Some((split + 1) as usize);
+        }
+    }
+    None
+}
+
+fn find_mirror(v: &Vec<u64>, part2: bool) -> Option<usize> {
+    if part2 {
+        find_mirror2(v)
+    } else {
+        find_mirror1(v)
+    }
+}
+
 impl Grid {
     fn from_text(text: &Vec<String>) -> Result<Self> {
         let mut rows = Vec::new();
@@ -91,10 +121,10 @@ impl Grid {
         Ok(Grid { rows, cols })
     }
 
-    fn find_mirror(&self) -> Result<usize> {
-        if let Some(n) = find_mirror(&self.rows) {
+    fn find_mirror(&self, part2: bool) -> Result<usize> {
+        if let Some(n) = find_mirror(&self.rows, part2) {
             Ok(100 * n)
-        } else if let Some(n) = find_mirror(&self.cols) {
+        } else if let Some(n) = find_mirror(&self.cols, part2) {
             Ok(n)
         } else {
             Err(anyhow!("no answer!"))
@@ -135,17 +165,21 @@ fn read_input(path: &str, _debug: bool) -> Result<Vec<Grid>> {
 
 fn process(args: &Args) -> Result<()> {
     let input = read_input(&args.input, args.debug)?;
-    let progress = ProgressBar::new(input.len() as u64);
-    let mut total = 0usize;
+    let progress = ProgressBar::new(input.len() as u64 * 2);
+    let mut total1 = 0usize;
+    let mut total2 = 0usize;
     for grid in input.iter() {
         if args.debug {
             println!("grid: {:?}", grid);
         }
-        total += grid.find_mirror()?;
+        total1 += grid.find_mirror(false)?;
+        progress.inc(1);
+        total2 += grid.find_mirror(true)?;
         progress.inc(1);
     }
     progress.finish();
-    println!("ans = {}", total);
+    println!("ans1 = {}", total1);
+    println!("ans2 = {}", total2);
     Ok(())
 }
 
