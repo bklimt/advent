@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use indicatif::ProgressBar;
 use itertools::Itertools;
+use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::option::Option;
 
 #[derive(Parser, Debug)]
@@ -97,7 +99,12 @@ fn parse_tail(line: &[char], debug: bool) -> bool {
 }
 
 // Returns the number of ways the line can match starting with the first number.
-fn parse_pounds(line: &[char], nums: &[usize], debug: bool) -> usize {
+fn parse_pounds(
+    line: &[char],
+    nums: &[usize],
+    cache: &mut HashMap<(usize, usize), usize>,
+    debug: bool,
+) -> usize {
     if debug {
         println!(
             "parse_pounds({:?}, {:?})",
@@ -153,14 +160,23 @@ fn parse_pounds(line: &[char], nums: &[usize], debug: bool) -> usize {
 
     // Parse the rest.
     let n = n + 1;
-    let ans = parse_dots(&line[n..], &nums[1..], debug);
+    let ans = parse_dots(&line[n..], &nums[1..], cache, debug);
     if debug {
         println!("<- {} (parse_pounds)", ans);
     }
     ans
 }
 
-fn parse_dots(line: &[char], nums: &[usize], debug: bool) -> usize {
+fn parse_dots(
+    line: &[char],
+    nums: &[usize],
+    cache: &mut HashMap<(usize, usize), usize>,
+    debug: bool,
+) -> usize {
+    if let Some(&ans) = cache.get(&(line.len(), nums.len())) {
+        return ans;
+    }
+
     if debug {
         println!(
             "parse_dots({:?}, {:?})",
@@ -177,22 +193,42 @@ fn parse_dots(line: &[char], nums: &[usize], debug: bool) -> usize {
         }
         return 0;
     }
+
+    // As an optimization, fail now if the rest isn't long enough.
+    let mut min_len = 0usize;
+    for &n in nums.iter() {
+        min_len += n as usize;
+    }
+    min_len += nums.len() - 1;
+    if line.len() < min_len {
+        if debug {
+            println!("<- 0 (line.len() = {} < min_len = {})", line.len(), min_len);
+        }
+        return 0;
+    }
+
     let ans = match line[0] {
-        '.' => parse_dots(&line[1..], nums, debug),
-        '#' => parse_pounds(&line[..], nums, debug),
-        '?' => parse_dots(&line[1..], nums, debug) + parse_pounds(&line[..], nums, debug),
+        '.' => parse_dots(&line[1..], nums, cache, debug),
+        '#' => parse_pounds(&line[..], nums, cache, debug),
+        '?' => {
+            let n1 = parse_dots(&line[1..], nums, cache, debug);
+            let n2 = parse_pounds(&line[..], nums, cache, debug);
+            n1 + n2
+        }
         _ => panic!("invalid char: {}", line[0]),
     };
     if debug {
         println!("<- {} (parse_dots)", ans);
     }
+    cache.insert((line.len(), nums.len()), ans);
     ans
 }
 
 fn process_record(record: &Record, debug: bool) -> usize {
     let line = record.text.chars().collect_vec();
     let nums = record.counts.clone();
-    let n = parse_dots(&line[..], &nums[..], false);
+    let mut cache = HashMap::new();
+    let n = parse_dots(&line[..], &nums[..], &mut cache, false);
     if debug {
         println!("{:?} -> {}", record, n);
         // println!("\n");
@@ -202,18 +238,18 @@ fn process_record(record: &Record, debug: bool) -> usize {
 
 fn process(args: &Args) -> Result<()> {
     let input = read_input(&args.input, args.debug)?;
+    let progress = ProgressBar::new(input.len() as u64 * 2);
     let mut total1 = 0usize;
     let mut total2 = 0usize;
     for record in input.iter() {
         total1 += process_record(record, args.debug);
+        progress.inc(1);
 
         let expanded = record.expand();
         total2 += process_record(&expanded, args.debug);
-
-        // print!(".");
-        // io::stdout().flush().unwrap();
+        progress.inc(1);
     }
-    println!("");
+    progress.finish();
     println!("ans 1 = {}", total1);
     println!("ans 2 = {}", total2);
     Ok(())
