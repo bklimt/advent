@@ -48,7 +48,7 @@ impl Input {
     fn score(&self) -> Result<usize> {
         let mut score = 0;
         for (i, row) in self.map.iter().enumerate() {
-            for (j, &c) in row.iter().enumerate() {
+            for &c in row.iter() {
                 match c {
                     '.' => {}
                     '#' => {}
