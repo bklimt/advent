@@ -245,7 +245,7 @@ fn process(args: &Args) -> Result<()> {
     }
     for i in 0..input.height {
         best = best.max(input.fill(0, i, Direction::EAST));
-        best = best.max(input.fill(input.width - 1, i, Direction::NORTH));
+        best = best.max(input.fill(input.width - 1, i, Direction::WEST));
     }
     println!("ans 2: {}", best);
 
