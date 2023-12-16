@@ -1,4 +1,4 @@
-use advent::common::parse_all;
+use advent::common::StrIterator;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::fs::File;
@@ -64,7 +64,7 @@ fn extrapolate(path: &str, part2: bool, debug: bool) -> Result<i64> {
             continue;
         }
 
-        let nums = parse_all(line.split_whitespace())?;
+        let nums = line.split_whitespace().parse_all()?;
         total += next_value(&nums, part2, debug)?;
     }
     Ok(total)

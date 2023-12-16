@@ -1,5 +1,4 @@
-use advent::common::parse_all;
-
+use advent::common::StrIterator;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::collections::{HashMap, HashSet};
@@ -42,8 +41,8 @@ impl Card {
         let (winners_str, chosen_str) = line.split_at(pipe_pos);
         let chosen_str = &chosen_str[1..];
 
-        let winners_vec = parse_all(winners_str.split_whitespace())?;
-        let chosen = parse_all(chosen_str.split_whitespace())?;
+        let winners_vec = winners_str.split_whitespace().parse_all()?;
+        let chosen = chosen_str.split_whitespace().parse_all()?;
 
         let mut winners = HashSet::new();
         for winner in winners_vec {

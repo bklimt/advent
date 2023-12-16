@@ -1,4 +1,4 @@
-use advent::common::parse_all;
+use advent::common::StrIterator;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::cmp::min;
@@ -46,7 +46,7 @@ impl MapRange {
     }
 
     fn from_str(line: &str) -> Result<Self> {
-        let parts = parse_all(line.split_whitespace())?;
+        let parts = line.split_whitespace().parse_all()?;
         if parts.len() != 3 {
             return Err(anyhow!("invalid line: {:?}", line));
         }
@@ -227,7 +227,7 @@ fn read_seeds(f: &mut BufReader<File>) -> Result<Vec<i64>> {
         return Err(anyhow!("expected \"seeds: \", got {:?}", line));
     }
     let line = &line[7..];
-    let seeds = parse_all(line.split_whitespace())?;
+    let seeds = line.split_whitespace().parse_all()?;
 
     let mut line = String::new();
     let _n = f.read_line(&mut line).unwrap();

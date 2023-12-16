@@ -15,4 +15,17 @@ pub mod common {
         }
         Ok(v)
     }
+
+    pub trait StrIterator: Iterator {
+        fn parse_all<'a, T>(self) -> Result<Vec<T>, anyhow::Error>
+        where
+            Self: Iterator<Item = &'a str> + Sized,
+            T: FromStr,
+            T::Err: 'static + std::error::Error + Send + Sync,
+        {
+            crate::common::parse_all(self)
+        }
+    }
+
+    impl<T> StrIterator for T where T: Iterator {}
 }

@@ -1,4 +1,4 @@
-use advent::common::parse_all;
+use advent::common::StrIterator;
 use anyhow::{Context, Result};
 use clap::Parser;
 use indicatif::ProgressBar;
@@ -60,7 +60,7 @@ fn read_input(path: &str, _debug: bool) -> Result<Vec<Record>> {
         let (text, count_text) = line.split_at(space);
         let text = text.to_owned();
         let count_text = &count_text[1..];
-        let counts = parse_all(count_text.split(','))?;
+        let counts = count_text.split(',').parse_all()?;
         v.push(Record { text, counts });
     }
 
