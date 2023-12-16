@@ -52,16 +52,20 @@ impl Input {
         q.push_back(Beam { x, y, dir });
 
         while let Some(beam) = q.pop_front() {
-            if !seen.insert(beam.clone()) {
-                continue;
-            }
-
             let &c = self
                 .map
                 .get(beam.y)
                 .expect("y in range")
                 .get(beam.x)
                 .expect("y in range");
+
+            // If we hit anything other than '.', check whether we've been here before.
+            // Repeats are rare, and dots are common, so only check for repeats on other obstacles.
+            if c != '.' {
+                if !seen.insert(beam.clone()) {
+                    continue;
+                }
+            }
 
             let is_on: &mut bool = on
                 .get_mut(beam.y)
