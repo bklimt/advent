@@ -1,3 +1,4 @@
+use advent::common::parse_all;
 use anyhow::{Context, Result};
 use clap::Parser;
 use indicatif::ProgressBar;
@@ -37,18 +38,6 @@ impl Record {
     }
 }
 
-fn parse_num_list(line: &str) -> Result<Vec<usize>> {
-    let mut v = Vec::new();
-    for part in line.split(',') {
-        let part = part.trim();
-        v.push(
-            part.parse()
-                .context(format!("invalid number in {:?}", line))?,
-        );
-    }
-    Ok(v)
-}
-
 fn read_input(path: &str, _debug: bool) -> Result<Vec<Record>> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
@@ -71,7 +60,7 @@ fn read_input(path: &str, _debug: bool) -> Result<Vec<Record>> {
         let (text, count_text) = line.split_at(space);
         let text = text.to_owned();
         let count_text = &count_text[1..];
-        let counts = parse_num_list(count_text)?;
+        let counts = parse_all(count_text.split(','))?;
         v.push(Record { text, counts });
     }
 

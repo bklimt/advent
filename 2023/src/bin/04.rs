@@ -1,3 +1,5 @@
+use advent::common::parse_all;
+
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::collections::{HashMap, HashSet};
@@ -21,15 +23,6 @@ struct Card {
     chosen: Vec<i32>,
 }
 
-fn parse_num_list(line: &str) -> Result<Vec<i32>> {
-    let mut v = Vec::new();
-    for part in line.split_whitespace() {
-        let part = part.trim();
-        v.push(part.parse()?);
-    }
-    Ok(v)
-}
-
 impl Card {
     fn from_str(line: &str) -> Result<Card> {
         if !line.starts_with("Card ") {
@@ -49,8 +42,8 @@ impl Card {
         let (winners_str, chosen_str) = line.split_at(pipe_pos);
         let chosen_str = &chosen_str[1..];
 
-        let winners_vec = parse_num_list(winners_str)?;
-        let chosen = parse_num_list(chosen_str)?;
+        let winners_vec = parse_all(winners_str.split_whitespace())?;
+        let chosen = parse_all(chosen_str.split_whitespace())?;
 
         let mut winners = HashSet::new();
         for winner in winners_vec {

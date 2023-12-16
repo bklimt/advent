@@ -1,3 +1,4 @@
+use advent::common::parse_all;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::cmp::min;
@@ -13,18 +14,6 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
-}
-
-fn parse_num_list(line: &str) -> Result<Vec<i64>> {
-    let mut v = Vec::new();
-    for part in line.split_whitespace() {
-        let part = part.trim();
-        v.push(
-            part.parse()
-                .context(format!("invalid number in {:?}", line))?,
-        );
-    }
-    Ok(v)
 }
 
 #[derive(Debug)]
@@ -57,7 +46,7 @@ impl MapRange {
     }
 
     fn from_str(line: &str) -> Result<Self> {
-        let parts = parse_num_list(line)?;
+        let parts = parse_all(line.split_whitespace())?;
         if parts.len() != 3 {
             return Err(anyhow!("invalid line: {:?}", line));
         }
@@ -238,7 +227,7 @@ fn read_seeds(f: &mut BufReader<File>) -> Result<Vec<i64>> {
         return Err(anyhow!("expected \"seeds: \", got {:?}", line));
     }
     let line = &line[7..];
-    let seeds = parse_num_list(line)?;
+    let seeds = parse_all(line.split_whitespace())?;
 
     let mut line = String::new();
     let _n = f.read_line(&mut line).unwrap();

@@ -1,3 +1,4 @@
+use advent::common::parse_all;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::fs::File;
@@ -12,18 +13,6 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
-}
-
-fn parse_num_list(line: &str) -> Result<Vec<i64>> {
-    let mut v = Vec::new();
-    for part in line.split_whitespace() {
-        let part = part.trim();
-        v.push(
-            part.parse()
-                .context(format!("invalid number in {:?}", line))?,
-        );
-    }
-    Ok(v)
 }
 
 fn next_value(v: &Vec<i64>, part2: bool, debug: bool) -> Result<i64> {
@@ -75,7 +64,7 @@ fn extrapolate(path: &str, part2: bool, debug: bool) -> Result<i64> {
             continue;
         }
 
-        let nums = parse_num_list(line)?;
+        let nums = parse_all(line.split_whitespace())?;
         total += next_value(&nums, part2, debug)?;
     }
     Ok(total)
