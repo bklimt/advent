@@ -32,6 +32,12 @@ struct Beam {
     dir: Direction,
 }
 
+impl Beam {
+    fn new(x: usize, y: usize, dir: Direction) -> Self {
+        Beam { x, y, dir }
+    }
+}
+
 #[derive(Debug)]
 struct Input {
     map: Vec<Vec<char>>,
@@ -40,7 +46,10 @@ struct Input {
 }
 
 impl Input {
-    fn fill(&mut self, x: usize, y: usize, dir: Direction) -> usize {
+    // Cast a beam starting at (x, y) and going in direction.
+    // `ends` returns the set of spots where the beam terminated.
+    // Returns the number of "activated" cells.
+    fn fill(&mut self, x: usize, y: usize, dir: Direction, ends: &mut HashSet<Beam>) -> usize {
         let width = self.width;
         let height = self.height;
 
@@ -83,116 +92,92 @@ impl Input {
                 Direction::NORTH => {
                     if c == '.' || c == '|' {
                         if beam.y > 0 {
-                            q.push_back(Beam {
-                                x: beam.x,
-                                y: beam.y - 1,
-                                dir,
-                            });
+                            q.push_back(Beam::new(beam.x, beam.y - 1, dir));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '/' || c == '-' {
                         if beam.x < width - 1 {
-                            q.push_back(Beam {
-                                x: beam.x + 1,
-                                y: beam.y,
-                                dir: Direction::EAST,
-                            });
+                            q.push_back(Beam::new(beam.x + 1, beam.y, Direction::EAST));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '\\' || c == '-' {
                         if beam.x > 0 {
-                            q.push_back(Beam {
-                                x: beam.x - 1,
-                                y: beam.y,
-                                dir: Direction::WEST,
-                            });
+                            q.push_back(Beam::new(beam.x - 1, beam.y, Direction::WEST));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                 }
                 Direction::SOUTH => {
                     if c == '.' || c == '|' {
                         if beam.y < height - 1 {
-                            q.push_back(Beam {
-                                x: beam.x,
-                                y: beam.y + 1,
-                                dir,
-                            });
+                            q.push_back(Beam::new(beam.x, beam.y + 1, dir));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '/' || c == '-' {
                         if beam.x > 0 {
-                            q.push_back(Beam {
-                                x: beam.x - 1,
-                                y: beam.y,
-                                dir: Direction::WEST,
-                            });
+                            q.push_back(Beam::new(beam.x - 1, beam.y, Direction::WEST));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '\\' || c == '-' {
                         if beam.x < width - 1 {
-                            q.push_back(Beam {
-                                x: beam.x + 1,
-                                y: beam.y,
-                                dir: Direction::EAST,
-                            });
+                            q.push_back(Beam::new(beam.x + 1, beam.y, Direction::EAST));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                 }
                 Direction::WEST => {
                     if c == '.' || c == '-' {
                         if beam.x > 0 {
-                            q.push_back(Beam {
-                                x: beam.x - 1,
-                                y: beam.y,
-                                dir,
-                            });
+                            q.push_back(Beam::new(beam.x - 1, beam.y, dir));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '/' || c == '|' {
                         if beam.y < height - 1 {
-                            q.push_back(Beam {
-                                x: beam.x,
-                                y: beam.y + 1,
-                                dir: Direction::SOUTH,
-                            });
+                            q.push_back(Beam::new(beam.x, beam.y + 1, Direction::SOUTH));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '\\' || c == '|' {
                         if beam.y > 0 {
-                            q.push_back(Beam {
-                                x: beam.x,
-                                y: beam.y - 1,
-                                dir: Direction::NORTH,
-                            });
+                            q.push_back(Beam::new(beam.x, beam.y - 1, Direction::NORTH));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                 }
                 Direction::EAST => {
                     if c == '.' || c == '-' {
                         if beam.x < width - 1 {
-                            q.push_back(Beam {
-                                x: beam.x + 1,
-                                y: beam.y,
-                                dir,
-                            });
+                            q.push_back(Beam::new(beam.x + 1, beam.y, dir));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '/' || c == '|' {
                         if beam.y > 0 {
-                            q.push_back(Beam {
-                                x: beam.x,
-                                y: beam.y - 1,
-                                dir: Direction::NORTH,
-                            });
+                            q.push_back(Beam::new(beam.x, beam.y - 1, Direction::NORTH));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                     if c == '\\' || c == '|' {
                         if beam.y < height - 1 {
-                            q.push_back(Beam {
-                                x: beam.x,
-                                y: beam.y + 1,
-                                dir: Direction::SOUTH,
-                            });
+                            q.push_back(Beam::new(beam.x, beam.y + 1, Direction::SOUTH));
+                        } else {
+                            ends.insert(beam);
                         }
                     }
                 }
@@ -205,7 +190,6 @@ impl Input {
 fn read_input(path: &str, _debug: bool) -> Result<Input> {
     let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
     let mut r = BufReader::new(file);
-
     let mut v = Vec::new();
 
     loop {
@@ -224,7 +208,7 @@ fn read_input(path: &str, _debug: bool) -> Result<Input> {
     }
 
     let height = v.len();
-    let width = v.first().expect("map not empty").len();
+    let width = v.first().context("map is empty")?.len();
 
     Ok(Input {
         map: v,
@@ -235,17 +219,27 @@ fn read_input(path: &str, _debug: bool) -> Result<Input> {
 
 fn process(args: &Args) -> Result<()> {
     let mut input = read_input(&args.input, args.debug)?;
-    let score = input.fill(0, 0, Direction::EAST);
+    let mut ends = HashSet::new();
+    let score = input.fill(0, 0, Direction::EAST, &mut ends);
     println!("ans 1: {}", score);
 
+    ends.clear();
     let mut best = 0;
     for i in 0..input.width {
-        best = best.max(input.fill(i, 0, Direction::SOUTH));
-        best = best.max(input.fill(i, input.height - 1, Direction::NORTH));
+        if !ends.contains(&Beam::new(i, 0, Direction::NORTH)) {
+            best = best.max(input.fill(i, 0, Direction::SOUTH, &mut ends));
+        }
+        if !ends.contains(&Beam::new(i, input.height - 1, Direction::SOUTH)) {
+            best = best.max(input.fill(i, input.height - 1, Direction::NORTH, &mut ends));
+        }
     }
     for i in 0..input.height {
-        best = best.max(input.fill(0, i, Direction::EAST));
-        best = best.max(input.fill(input.width - 1, i, Direction::WEST));
+        if !ends.contains(&Beam::new(0, i, Direction::WEST)) {
+            best = best.max(input.fill(0, i, Direction::EAST, &mut ends));
+        }
+        if !ends.contains(&Beam::new(input.width - 1, i, Direction::EAST)) {
+            best = best.max(input.fill(input.width - 1, i, Direction::WEST, &mut ends));
+        }
     }
     println!("ans 2: {}", best);
 
