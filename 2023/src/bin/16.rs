@@ -17,12 +17,6 @@ struct Args {
     debug: bool,
 }
 
-#[derive(Debug)]
-struct Node {
-    c: char,
-    on: bool,
-}
-
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 enum Direction {
     NORTH = 1,
@@ -40,19 +34,21 @@ struct Beam {
 
 #[derive(Debug)]
 struct Input {
-    map: Vec<Vec<Node>>,
+    map: Vec<Vec<char>>,
     width: usize,
     height: usize,
 }
 
 impl Input {
-    fn fill(&mut self, x: usize, y: usize, dir: Direction) {
+    fn fill(&mut self, x: usize, y: usize, dir: Direction) -> usize {
         let width = self.width;
         let height = self.height;
 
         let mut q: VecDeque<Beam> = VecDeque::new();
         let mut seen: HashSet<Beam> = HashSet::new();
+        let mut on: Vec<Vec<bool>> = vec![vec![false; width]; height];
 
+        let mut score = 0usize;
         q.push_back(Beam { x, y, dir });
 
         while let Some(beam) = q.pop_front() {
@@ -60,16 +56,24 @@ impl Input {
                 continue;
             }
 
-            let node: &mut Node = self
+            let &c = self
                 .map
+                .get(beam.y)
+                .expect("y in range")
+                .get(beam.x)
+                .expect("y in range");
+
+            let is_on: &mut bool = on
                 .get_mut(beam.y)
                 .expect("y in range")
                 .get_mut(beam.x)
                 .expect("y in range");
-            node.on = true;
+            if !*is_on {
+                *is_on = true;
+                score += 1;
+            }
 
             let dir = beam.dir;
-            let c = node.c;
 
             match dir {
                 Direction::NORTH => {
@@ -190,18 +194,6 @@ impl Input {
                 }
             }
         }
-    }
-
-    fn score_and_clear(&mut self) -> usize {
-        let mut score = 0;
-        for (_, row) in self.map.iter_mut().enumerate() {
-            for node in row.iter_mut() {
-                if node.on {
-                    score += 1;
-                }
-                node.on = false;
-            }
-        }
         score
     }
 }
@@ -224,7 +216,7 @@ fn read_input(path: &str, _debug: bool) -> Result<Input> {
             continue;
         }
 
-        v.push(line.chars().map(|c| Node { c, on: false }).collect_vec());
+        v.push(line.chars().collect_vec());
     }
 
     let height = v.len();
@@ -239,23 +231,17 @@ fn read_input(path: &str, _debug: bool) -> Result<Input> {
 
 fn process(args: &Args) -> Result<()> {
     let mut input = read_input(&args.input, args.debug)?;
-    input.fill(0, 0, Direction::EAST);
-    println!("ans 1: {}", input.score_and_clear());
+    let score = input.fill(0, 0, Direction::EAST);
+    println!("ans 1: {}", score);
 
     let mut best = 0;
     for i in 0..input.width {
-        input.fill(i, 0, Direction::SOUTH);
-        best = best.max(input.score_and_clear());
-
-        input.fill(i, input.height - 1, Direction::NORTH);
-        best = best.max(input.score_and_clear());
+        best = best.max(input.fill(i, 0, Direction::SOUTH));
+        best = best.max(input.fill(i, input.height - 1, Direction::NORTH));
     }
     for i in 0..input.height {
-        input.fill(0, i, Direction::EAST);
-        best = best.max(input.score_and_clear());
-
-        input.fill(input.width - 1, i, Direction::NORTH);
-        best = best.max(input.score_and_clear());
+        best = best.max(input.fill(0, i, Direction::EAST));
+        best = best.max(input.fill(input.width - 1, i, Direction::NORTH));
     }
     println!("ans 2: {}", best);
 
