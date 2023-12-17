@@ -2,8 +2,6 @@ use advent::common::{read_lines, StrIterator};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::option::Option;
 use std::str::FromStr;
 
@@ -115,11 +113,7 @@ fn do_part2(v: &Vec<Card>, debug: bool) -> Result<i32> {
 }
 
 fn read_input(path: &str, _debug: bool) -> Result<Vec<Card>> {
-    let mut cards = Vec::new();
-    for line in read_lines(path)? {
-        cards.push(line.parse()?);
-    }
-    Ok(cards)
+    Ok(read_lines(path)?.parse_all()?)
 }
 
 fn process(args: &Args) -> Result<()> {

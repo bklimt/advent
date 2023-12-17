@@ -1,9 +1,8 @@
+use advent::common::read_lines;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use num::integer::lcm;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::option::Option;
 
 #[derive(Parser, Debug)]
@@ -30,22 +29,9 @@ struct Input {
 
 impl Input {
     fn read(path: &str, _debug: bool) -> Result<Self> {
-        let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
-        let mut r = BufReader::new(file);
         let mut directions: Option<String> = None;
         let mut map = HashMap::new();
-        loop {
-            let mut line = String::new();
-            let n = r.read_line(&mut line).unwrap();
-            let line = line.trim();
-
-            if line == "" {
-                if n == 0 {
-                    break;
-                }
-                continue;
-            }
-
+        for line in read_lines(path)? {
             if directions.is_none() {
                 directions = Some(line.to_owned());
             } else {

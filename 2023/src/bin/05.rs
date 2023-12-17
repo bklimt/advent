@@ -5,6 +5,7 @@ use std::cmp::min;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::option::Option;
+use std::str::FromStr;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -44,6 +45,10 @@ impl MapRange {
             dst_offset: dst_start - src_start,
         }
     }
+}
+
+impl FromStr for MapRange {
+    type Err = anyhow::Error;
 
     fn from_str(line: &str) -> Result<Self> {
         let parts = line.split_whitespace().parse_all()?;
@@ -180,7 +185,7 @@ impl Map {
                 break;
             }
 
-            map.ranges.push(MapRange::from_str(line)?);
+            map.ranges.push(line.parse()?);
         }
         map.ranges.sort_by_key(|r| r.src.start);
         map.verify()?;
