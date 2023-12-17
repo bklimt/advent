@@ -1,8 +1,6 @@
 use advent::common::{read_lines, StrIterator};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use clap::Parser;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::option::Option;
 
 #[derive(Parser, Debug)]

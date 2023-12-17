@@ -1,10 +1,8 @@
 use advent::common::read_lines;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use itertools::Itertools;
 use std::collections::VecDeque;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::option::Option;
 
 #[derive(Parser, Debug)]
