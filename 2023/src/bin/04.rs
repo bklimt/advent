@@ -1,10 +1,11 @@
-use advent::common::StrIterator;
+use advent::common::{read_lines, StrIterator};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::option::Option;
+use std::str::FromStr;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -22,7 +23,9 @@ struct Card {
     chosen: Vec<i32>,
 }
 
-impl Card {
+impl FromStr for Card {
+    type Err = anyhow::Error;
+
     fn from_str(line: &str) -> Result<Card> {
         if !line.starts_with("Card ") {
             return Err(anyhow!("invalid line: {:?}", line));
@@ -51,7 +54,9 @@ impl Card {
 
         Ok(Card { winners, chosen })
     }
+}
 
+impl Card {
     fn count(&self) -> i32 {
         let mut count = 0;
         for n in self.chosen.iter() {
@@ -110,22 +115,9 @@ fn do_part2(v: &Vec<Card>, debug: bool) -> Result<i32> {
 }
 
 fn read_input(path: &str, _debug: bool) -> Result<Vec<Card>> {
-    let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
-    let mut r = BufReader::new(file);
     let mut cards = Vec::new();
-    loop {
-        let mut line = String::new();
-        let n = r.read_line(&mut line).unwrap();
-        let line = line.trim();
-
-        if line == "" {
-            if n == 0 {
-                break;
-            }
-            continue;
-        }
-
-        cards.push(Card::from_str(line)?);
+    for line in read_lines(path)? {
+        cards.push(line.parse()?);
     }
     Ok(cards)
 }
