@@ -1,8 +1,8 @@
 pub mod common {
-    use anyhow::{Context, Result};
     use std::fs::File;
-    use std::io::{BufRead, BufReader};
+    use std::io::{self, BufRead, BufReader};
     use std::str::FromStr;
+    use thiserror::Error;
 
     pub struct LineReader {
         f: BufReader<File>,
@@ -28,24 +28,51 @@ pub mod common {
         }
     }
 
+    #[derive(Error, Debug)]
+    pub enum CommonError {
+        #[error("unable to open file {path:?}")]
+        FileNotFound { source: io::Error, path: String },
+
+        #[error("unable to parse {line:?}")]
+        ParseError {
+            source: Box<dyn std::error::Error + Send + Sync>,
+            line: String,
+        },
+    }
+
     // Skips blank lines.
-    pub fn read_lines(path: &str) -> Result<LineReader> {
-        let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
-        let f = BufReader::new(file);
-        Ok(LineReader { f })
+    pub fn read_lines(path: &str) -> Result<LineReader, CommonError> {
+        match File::open(path) {
+            Ok(f) => Ok(LineReader {
+                f: BufReader::new(f),
+            }),
+            Err(e) => Err(CommonError::FileNotFound {
+                source: e,
+                path: path.to_owned(),
+            }),
+        }
     }
 
     // Parses every item in the given iterator using FromStr.
-    pub fn parse_all<'a, T, I>(items: I) -> Result<Vec<T>, anyhow::Error>
+    pub fn parse_all<'a, T, I, S>(items: I) -> Result<Vec<T>, CommonError>
     where
         T: FromStr,
-        T::Err: 'static + std::error::Error + Send + Sync,
-        I: Iterator<Item = &'a str>,
+        S: AsRef<str>,
+        I: Iterator<Item = S>,
+        T::Err: Into<Box<dyn std::error::Error + Send + Sync>>,
     {
         let mut v = Vec::new();
         for part in items {
-            let part = part.trim();
-            v.push(part.parse().context(format!("invalid item: {}", part))?);
+            let part = part.as_ref().trim();
+            match part.parse::<T>() {
+                Ok(n) => v.push(n),
+                Err(e) => {
+                    return Err(CommonError::ParseError {
+                        line: part.to_owned(),
+                        source: e.into(),
+                    });
+                }
+            }
         }
         Ok(v)
     }
@@ -53,11 +80,13 @@ pub mod common {
     // Helper methods for iterators.
     pub trait StrIterator: Iterator {
         // Parses every item in the given iterator using FromStr.
-        fn parse_all<'a, T>(self) -> Result<Vec<T>, anyhow::Error>
+        fn parse_all<'a, S, T>(self) -> Result<Vec<T>, CommonError>
         where
-            Self: Iterator<Item = &'a str> + Sized,
+            S: AsRef<str>,
+            Self: Iterator<Item = S> + Sized,
             T: FromStr,
-            T::Err: 'static + std::error::Error + Send + Sync,
+            // T::Err: 'static + std::error::Error + Send + Sync,
+            T::Err: Into<Box<dyn std::error::Error + Send + Sync>>,
         {
             crate::common::parse_all(self)
         }

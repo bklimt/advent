@@ -1,4 +1,4 @@
-use advent::common::StrIterator;
+use advent::common::{read_lines, StrIterator};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::fs::File;
@@ -49,21 +49,8 @@ fn next_value(v: &Vec<i64>, part2: bool, debug: bool) -> Result<i64> {
 }
 
 fn extrapolate(path: &str, part2: bool, debug: bool) -> Result<i64> {
-    let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
-    let mut r = BufReader::new(file);
     let mut total = 0;
-    loop {
-        let mut line = String::new();
-        let n = r.read_line(&mut line).unwrap();
-        let line = line.trim();
-
-        if line == "" {
-            if n == 0 {
-                break;
-            }
-            continue;
-        }
-
+    for line in read_lines(path)? {
         let nums = line.split_whitespace().parse_all()?;
         total += next_value(&nums, part2, debug)?;
     }

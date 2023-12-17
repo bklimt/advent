@@ -113,11 +113,7 @@ fn do_part2(v: &Vec<Card>, debug: bool) -> Result<i32> {
 }
 
 fn read_input(path: &str, _debug: bool) -> Result<Vec<Card>> {
-    let mut cards = Vec::new();
-    for line in read_lines(path)? {
-        cards.push(line.parse()?);
-    }
-    Ok(cards)
+    Ok(read_lines(path)?.parse_all()?)
 }
 
 fn process(args: &Args) -> Result<()> {

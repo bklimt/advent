@@ -1,3 +1,4 @@
+use advent::common::read_lines;
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use itertools::Itertools;
@@ -85,22 +86,9 @@ struct Input {
 
 impl Input {
     fn read(path: &str, _debug: bool) -> Result<Self> {
-        let file = File::open(path).with_context(|| format!("unable to open file {:?}", path))?;
-        let mut r = BufReader::new(file);
         let mut start = (0, 0);
         let mut map = Vec::new();
-        loop {
-            let mut line = String::new();
-            let n = r.read_line(&mut line).unwrap();
-            let line = line.trim();
-
-            if line == "" {
-                if n == 0 {
-                    break;
-                }
-                continue;
-            }
-
+        for line in read_lines(path)? {
             map.push(line.chars().map(Node::from_char).collect());
 
             if let Some(s) = line.find('S') {
