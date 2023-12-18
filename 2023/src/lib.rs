@@ -1,9 +1,39 @@
 pub mod common {
+    use anyhow::anyhow;
     use std::fs::File;
     use std::io::{self, BufRead, BufReader};
     use std::ops::{Index, IndexMut};
     use std::str::FromStr;
     use thiserror::Error;
+
+    #[derive(Error, Debug)]
+    pub enum CommonError {
+        #[error("unable to open file {path:?}")]
+        FileNotFound { source: io::Error, path: String },
+
+        #[error("unable to parse {line:?}")]
+        ParseError {
+            source: Box<dyn std::error::Error + Send + Sync>,
+            line: String,
+        },
+
+        #[error("mismatched rows: got {got:?}; expected {expected:?}")]
+        MismatchedRowsError { got: usize, expected: usize },
+
+        #[error(transparent)]
+        InnerError(#[from] Box<dyn std::error::Error + Send + Sync>),
+    }
+
+    pub fn split_on(s: &str, c: char) -> Option<(&str, &str)> {
+        match s.find(c) {
+            Some(i) => {
+                let (s1, s2) = s.split_at(i);
+                let s2 = &s2[1..];
+                Some((s1, s2))
+            }
+            None => None,
+        }
+    }
 
     pub struct LineReader {
         f: BufReader<File>,
@@ -27,24 +57,6 @@ pub mod common {
                 return Some(line.to_owned());
             }
         }
-    }
-
-    #[derive(Error, Debug)]
-    pub enum CommonError {
-        #[error("unable to open file {path:?}")]
-        FileNotFound { source: io::Error, path: String },
-
-        #[error("unable to parse {line:?}")]
-        ParseError {
-            source: Box<dyn std::error::Error + Send + Sync>,
-            line: String,
-        },
-
-        #[error("mismatched rows: got {got:?}; expected {expected:?}")]
-        MismatchedRowsError { got: usize, expected: usize },
-
-        #[error(transparent)]
-        InnerError(#[from] Box<dyn std::error::Error + Send + Sync>),
     }
 
     // Skips blank lines.
