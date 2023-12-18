@@ -26,6 +26,7 @@ enum Direction {
     West,
 }
 
+// Node is a location and how far you've traveled so far in the current direction.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct Node {
     row: usize,
@@ -62,8 +63,11 @@ impl Input {
         Ok(Input { grid })
     }
 
-    fn can_move(&self, node: &Node, dir: Direction) -> bool {
-        if dir == node.dir && node.count >= 3 {
+    fn can_move(&self, node: &Node, dir: Direction, min: u8, max: u8) -> bool {
+        if dir != node.dir && node.count < min {
+            return false;
+        }
+        if dir == node.dir && node.count >= max {
             return false;
         }
         match dir {
@@ -74,60 +78,88 @@ impl Input {
         }
     }
 
-    fn try_move(&self, node: &Node, dir: Direction) -> Option<Node> {
-        if self.can_move(node, dir) {
+    fn try_move(&self, node: &Node, dir: Direction, min: u8, max: u8) -> Option<Node> {
+        if self.can_move(node, dir, min, max) {
             Some(node.plus_dir(dir))
         } else {
             None
         }
     }
 
-    fn next(&self, node: &Node) -> Vec<Node> {
+    // Returns the set of nodes you can get to from this one.
+    fn next(&self, node: &Node, min: u8, max: u8) -> Vec<Node> {
         let mut v = Vec::new();
-        if let Some(next) = self.try_move(node, Direction::North) {
+        if let Some(next) = self.try_move(node, Direction::North, min, max) {
             v.push(next);
         }
-        if let Some(next) = self.try_move(node, Direction::South) {
+        if let Some(next) = self.try_move(node, Direction::South, min, max) {
             v.push(next);
         }
-        if let Some(next) = self.try_move(node, Direction::East) {
+        if let Some(next) = self.try_move(node, Direction::East, min, max) {
             v.push(next);
         }
-        if let Some(next) = self.try_move(node, Direction::West) {
+        if let Some(next) = self.try_move(node, Direction::West, min, max) {
             v.push(next);
         }
         v
     }
 
-    fn search(&self, debug: bool) -> Result<i64> {
-        let start = Node {
+    fn print_path(prev: &HashMap<Node, Node>, curr: &Node) {
+        if let Some(n) = prev.get(curr) {
+            Input::print_path(&prev, n);
+        }
+        println!("{:?}", curr);
+    }
+
+    // This is basically Dijkstra's algorithm on the graph of Nodes.
+    fn search(&self, part2: bool, debug: bool) -> Result<i64> {
+        let (min, max) = if part2 { (4, 10) } else { (0, 3) };
+
+        let start1 = Node {
             row: 0,
             col: 0,
             dir: Direction::South,
             count: 0,
         };
+        let start2 = Node {
+            row: 0,
+            col: 0,
+            dir: Direction::East,
+            count: 0,
+        };
         let mut dist: HashMap<Node, i64> = HashMap::new();
-        dist.insert(start, 0);
+        dist.insert(start1, 0);
+        dist.insert(start2, 0);
+
+        let mut prev: HashMap<Node, Node> = HashMap::new();
 
         let mut q = DoublePriorityQueue::new();
-        q.push(start, 0);
+        q.push(start1, 0);
+        q.push(start2, 0);
         while let Some((current, d)) = q.pop_min() {
             if debug {
                 println!("visiting {:?} = {}", current, d);
             }
 
-            if current.row == self.grid.rows() - 1 && current.col == self.grid.columns() - 1 {
+            if current.count >= min
+                && current.row == self.grid.rows() - 1
+                && current.col == self.grid.columns() - 1
+            {
+                if debug {
+                    println!("returning {}", d);
+                    Input::print_path(&prev, &current);
+                }
                 return Ok(d);
             }
 
-            let next = self.next(&current);
+            let next = self.next(&current, min, max);
             for n in next {
                 let d2 = d + self.grid[(n.row, n.col)] as i64;
                 if debug {
                     println!("neighbor {:?} = {}", n, d2);
                 }
-                let best = if let Some(&prev) = dist.get(&n) {
-                    d2 < prev
+                let best = if let Some(&d0) = dist.get(&n) {
+                    d2 < d0
                 } else {
                     true
                 };
@@ -136,6 +168,7 @@ impl Input {
                         println!("updating to {}", d2);
                     }
                     dist.insert(n.clone(), d2);
+                    prev.insert(n.clone(), current.clone());
                     q.push_decrease(n, d2);
                 }
             }
@@ -147,8 +180,18 @@ impl Input {
 
 fn process(args: &Args) -> Result<()> {
     let input = Input::read(args.input.as_str())?;
-    let ans = input.search(args.debug)?;
-    println!("ans = {}", ans);
+
+    if args.debug {
+        println!("part1:");
+    }
+    let ans1 = input.search(false, args.debug)?;
+    println!("ans1 = {}", ans1);
+
+    if args.debug {
+        println!("\npart2:");
+    }
+    let ans2 = input.search(true, args.debug)?;
+    println!("ans2 = {}", ans2);
     Ok(())
 }
 
