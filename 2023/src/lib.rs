@@ -96,6 +96,7 @@ pub mod common {
         pub fn from_rows<I: IntoIterator<Item = Vec<T>>>(it: I) -> Result<Self, CommonError> {
             let mut data = Vec::new();
             let mut cols = None;
+            let mut rows = 0usize;
 
             for row in it {
                 match cols {
@@ -112,10 +113,19 @@ pub mod common {
                 for r in row {
                     data.push(r);
                 }
+                rows += 1;
             }
 
             let cols = cols.unwrap_or(0usize);
-            let rows = data.len();
+            if data.len() != rows * cols {
+                panic!(
+                    "data.len() should be {}*{}={}, but is {}",
+                    rows,
+                    cols,
+                    rows * cols,
+                    data.len()
+                );
+            }
             Ok(Array2D { data, rows, cols })
         }
     }

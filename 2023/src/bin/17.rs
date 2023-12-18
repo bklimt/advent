@@ -1,7 +1,8 @@
 use advent::common::{read_grid, Array2D};
-use anyhow::{Context, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 use clap::Parser;
-use std::option::Option;
+use priority_queue::DoublePriorityQueue;
+use std::{collections::HashMap, option::Option};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -17,7 +18,7 @@ struct Input {
     grid: Array2D<i32>,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 enum Direction {
     North = 1,
     South,
@@ -25,7 +26,7 @@ enum Direction {
     West,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct Node {
     row: usize,
     col: usize,
@@ -98,11 +99,56 @@ impl Input {
         v
     }
 
-    fn search(&self) {}
+    fn search(&self, debug: bool) -> Result<i64> {
+        let start = Node {
+            row: 0,
+            col: 0,
+            dir: Direction::South,
+            count: 0,
+        };
+        let mut dist: HashMap<Node, i64> = HashMap::new();
+        dist.insert(start, 0);
+
+        let mut q = DoublePriorityQueue::new();
+        q.push(start, 0);
+        while let Some((current, d)) = q.pop_min() {
+            if debug {
+                println!("visiting {:?} = {}", current, d);
+            }
+
+            if current.row == self.grid.rows() - 1 && current.col == self.grid.columns() - 1 {
+                return Ok(d);
+            }
+
+            let next = self.next(&current);
+            for n in next {
+                let d2 = d + self.grid[(n.row, n.col)] as i64;
+                if debug {
+                    println!("neighbor {:?} = {}", n, d2);
+                }
+                let best = if let Some(&prev) = dist.get(&n) {
+                    d2 < prev
+                } else {
+                    true
+                };
+                if best {
+                    if debug {
+                        println!("updating to {}", d2);
+                    }
+                    dist.insert(n.clone(), d2);
+                    q.push_decrease(n, d2);
+                }
+            }
+        }
+
+        bail!("no result found");
+    }
 }
 
 fn process(args: &Args) -> Result<()> {
-    let _ = Input::read(args.input.as_str());
+    let input = Input::read(args.input.as_str())?;
+    let ans = input.search(args.debug)?;
+    println!("ans = {}", ans);
     Ok(())
 }
 
