@@ -67,6 +67,14 @@ pub mod common {
     }
 
     impl<T> Array2D<T> {
+        pub fn rows(&self) -> usize {
+            self.rows
+        }
+
+        pub fn columns(&self) -> usize {
+            self.cols
+        }
+
         fn get_index(&self, row: usize, col: usize) -> Option<usize> {
             if row >= self.rows || col >= self.cols {
                 None
