@@ -199,29 +199,36 @@ fn count_unfilled(grid: &Array2D<Cell>) -> u64 {
     total
 }
 
+#[derive(Clone, Copy)]
+struct VerticalSegment {
+    column: i64,
+    min_row: i64,
+    max_row: i64,
+}
+
+#[derive(Clone, Copy)]
+struct HorizontalSegment {
+    row: i64,
+    min_col: i64,
+    max_col: i64,
+}
+
 // A line segment of the trench.
 #[derive(Clone, Copy)]
 enum Segment {
-    Vertical {
-        column: i64,
-        min_row: i64,
-        max_row: i64,
-    },
-    Horizontal {
-        row: i64,
-        min_col: i64,
-        max_col: i64,
-    },
+    Vertical(VerticalSegment),
+    Horizontal(HorizontalSegment),
 }
 
-fn create_segments(records: &Vec<Record>) -> Vec<Segment> {
+fn create_segments(records: &Vec<Record>) -> (Vec<HorizontalSegment>, Vec<VerticalSegment>) {
+    let mut h = Vec::new();
     let mut v = Vec::new();
     let mut r = 0i64;
     let mut c = 0i64;
     for rec in records {
         match rec.dir {
             Direction::Up => {
-                v.push(Segment::Vertical {
+                v.push(VerticalSegment {
                     column: c,
                     min_row: r - rec.amount,
                     max_row: r,
@@ -229,7 +236,7 @@ fn create_segments(records: &Vec<Record>) -> Vec<Segment> {
                 r -= rec.amount;
             }
             Direction::Down => {
-                v.push(Segment::Vertical {
+                v.push(VerticalSegment {
                     column: c,
                     min_row: r,
                     max_row: r + rec.amount,
@@ -237,7 +244,7 @@ fn create_segments(records: &Vec<Record>) -> Vec<Segment> {
                 r += rec.amount;
             }
             Direction::Left => {
-                v.push(Segment::Horizontal {
+                h.push(HorizontalSegment {
                     row: r,
                     min_col: c - rec.amount,
                     max_col: c,
@@ -245,7 +252,7 @@ fn create_segments(records: &Vec<Record>) -> Vec<Segment> {
                 c -= rec.amount;
             }
             Direction::Right => {
-                v.push(Segment::Horizontal {
+                h.push(HorizontalSegment {
                     row: r,
                     min_col: c,
                     max_col: c + rec.amount,
@@ -254,10 +261,14 @@ fn create_segments(records: &Vec<Record>) -> Vec<Segment> {
             }
         };
     }
-    v
+    (h, v)
 }
 
-fn compute_area_for_row(r: i64) {
+fn compute_area_for_row(
+    row: i64,
+    horizontal: &Vec<HorizontalSegment>,
+    vertical: &Vec<VerticalSegment>,
+) {
     // Find all the horizontal segments on this row.
     // Find all the vertical segments that cross this row.
     // Sort all the segments by either min_col or col.
@@ -267,8 +278,13 @@ fn compute_area_for_row(r: i64) {
     //    Basically, you want to know if you're on a corner or not, and which corner.
 }
 
-fn find_area_by_segments() {
+fn find_area_by_segments(records: &Vec<Record>) {
+    // Get all segments.
+    let (mut horizontal, mut vertical) = create_segments(records);
+
     // Sort horizontal segments by row.
+    horizontal.sort_by_key(|seg| seg.row);
+
     // For each row
     //   If there was a previous row:
     //     If the previous was more than 1 before this one:
