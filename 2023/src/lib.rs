@@ -1,5 +1,4 @@
 pub mod common {
-    use anyhow::anyhow;
     use std::fs::File;
     use std::io::{self, BufRead, BufReader};
     use std::ops::{Index, IndexMut};
