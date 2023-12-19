@@ -2,7 +2,7 @@ use advent::common::{read_lines, split_on, Array2D, StrIterator};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
-use std::{str::FromStr, time::Duration};
+use std::{collections::VecDeque, str::FromStr, time::Duration};
 
 #[derive(Debug)]
 enum Direction {
@@ -90,6 +90,7 @@ fn read_input(path: &str) -> Result<Vec<Record>> {
 enum Cell {
     Empty,
     Trench(CellColor),
+    Filled,
 }
 
 fn create_grid(input: &Vec<Record>, debug: bool) -> Result<Array2D<Cell>> {
@@ -155,6 +156,49 @@ fn create_grid(input: &Vec<Record>, debug: bool) -> Result<Array2D<Cell>> {
     Ok(grid)
 }
 
+fn fill(grid: &mut Array2D<Cell>) {
+    let mut q = VecDeque::new();
+    for r in 0..grid.rows() {
+        q.push_back((r, 0));
+        q.push_back((r, grid.columns() - 1));
+    }
+    for c in 0..grid.columns() {
+        q.push_back((0, c));
+        q.push_back((grid.rows() - 1, c));
+    }
+    while let Some((r, c)) = q.pop_front() {
+        if let Cell::Empty = grid[(r, c)] {
+            if r > 0 {
+                q.push_back((r - 1, c));
+            }
+            if c > 0 {
+                q.push_back((r, c - 1));
+            }
+            if r < grid.rows() - 1 {
+                q.push_back((r + 1, c));
+            }
+            if c < grid.columns() - 1 {
+                q.push_back((r, c + 1));
+            }
+            grid[(r, c)] = Cell::Filled;
+        }
+    }
+}
+
+fn count_unfilled(grid: &Array2D<Cell>) -> u64 {
+    let mut total = 0;
+    for r in 0..grid.rows() {
+        for c in 0..grid.columns() {
+            match &grid[(r, c)] {
+                Cell::Empty => total += 1,
+                Cell::Trench(_) => total += 1,
+                Cell::Filled => {}
+            }
+        }
+    }
+    total
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -203,6 +247,7 @@ fn display_grid(grid: &Array2D<Cell>) -> Result<()> {
                 let cell = &grid[(r, c)];
                 let color = match cell {
                     Cell::Empty => Color::BLACK,
+                    Cell::Filled => Color::RGB(20, 20, 20),
                     Cell::Trench(col) => col.clone().into(),
                 };
                 canvas.set_draw_color(color);
@@ -221,11 +266,12 @@ fn display_grid(grid: &Array2D<Cell>) -> Result<()> {
 
 fn process(args: &Args) -> Result<()> {
     let input = read_input(args.input.as_str())?;
-    let grid = create_grid(&input, args.debug)?;
+    let mut grid = create_grid(&input, args.debug)?;
+    fill(&mut grid);
     if args.debug {
         display_grid(&grid)?;
     }
-
+    println!("ans: {}", count_unfilled(&grid));
     Ok(())
 }
 
