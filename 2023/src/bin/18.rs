@@ -262,6 +262,24 @@ fn create_segments(records: &Vec<Record>) -> (Vec<HorizontalSegment>, Vec<Vertic
     (h, v)
 }
 
+/*
+ * TODO: There's a bug here where:
+ * 1) This gets counted as 6:
+ *     ######
+ *   > #    #
+ *     ######
+ * 2) This gets count as 6:
+ *   > ######
+ *     #    #
+ *     ######
+ * 3) But this gets counted as 6 + 6 = 12, not 11.
+ *          ######
+ *          #    #
+ *     ######    #
+ *     #         #
+ *     ###########
+ */
+
 fn compute_area_for_row(
     row: i64,
     horizontal: &Vec<HorizontalSegment>,
@@ -288,11 +306,11 @@ fn compute_area_for_row(
     }
     vertical.sort_by_key(|seg| seg.column);
 
-    let mut total = i64::MIN;
+    let mut total = 0i64;
     let mut inside = false;
     let mut top_edge = false;
     let mut trailing_edge: Option<HorizontalSegment> = None;
-    let mut previous_column = 0i64;
+    let mut previous_column = i64::MIN;
     for v_seg in vertical {
         if debug {
             println!("considering vertical segment {:?}", v_seg);
@@ -308,7 +326,11 @@ fn compute_area_for_row(
                     previous_column
                 );
             }
-            total += column - previous_column + 1;
+            let seg_len = column - previous_column + 1;
+            if debug {
+                println!("adding segment length {}", seg_len);
+            }
+            total += seg_len;
         }
         previous_column = column;
 
@@ -326,11 +348,15 @@ fn compute_area_for_row(
                 // This is the top edge of the corner.
                 if !top_edge {
                     inside = !inside;
+                    // Don't double count the corner itself.
+                    total -= 1;
                 }
             } else if v_seg.max_row == row {
                 // This is the bottom edge of the corner.
                 if top_edge {
                     inside = !inside;
+                    // Don't double count the corner itself.
+                    total -= 1;
                 }
             } else {
                 bail!("found a t-junction.");
@@ -338,7 +364,9 @@ fn compute_area_for_row(
         } else if let Some(h_seg) = h_map.get(&column) {
             // This is a leading edge.
             if debug {
-                println!("this is a leading edge");
+                let seg_len = h_seg.max_col - h_seg.min_col + 1;
+                println!("this is a leading edge. adding length {}", seg_len);
+                total += seg_len;
             }
             trailing_edge = Some(h_seg.clone());
             if v_seg.min_row == row {
@@ -391,6 +419,12 @@ fn compute_area_by_segments(records: &Vec<Record>, debug: bool) -> Result<i64> {
                 // Multiply it by the height.
                 let height = row - prev - 1;
                 let area = row_area * height;
+                if debug {
+                    println!(
+                        "add area for previous section with row {} * height {} = {}",
+                        row_area, height, area
+                    );
+                }
                 total += area;
             }
         }
