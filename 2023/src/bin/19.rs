@@ -1,7 +1,8 @@
 use advent::common::split_on;
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{self, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::ops::{Index, IndexMut};
@@ -29,6 +30,21 @@ impl FromStr for Field {
             Some('s') => Ok(Field::S),
             _ => Err(anyhow!("invalid field: {}", s)),
         }
+    }
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Field::X => 'x',
+                Field::M => 'm',
+                Field::A => 'a',
+                Field::S => 's',
+            }
+        )
     }
 }
 
@@ -112,9 +128,9 @@ impl FromStr for Part {
 
 #[derive(Debug, Clone)]
 enum Consequent {
-    MOVE(String),
-    ACCEPT,
-    REJECT,
+    Move(String),
+    Accept,
+    Reject,
 }
 
 impl FromStr for Consequent {
@@ -128,31 +144,58 @@ impl FromStr for Consequent {
             bail!("invalid consequent: {}", s);
         }
         Ok(if s == "A" {
-            Consequent::ACCEPT
+            Consequent::Accept
         } else if s == "R" {
-            Consequent::REJECT
+            Consequent::Reject
         } else {
-            Consequent::MOVE(s.to_owned())
+            Consequent::Move(s.to_owned())
         })
     }
 }
 
-#[derive(Debug)]
+impl Display for Consequent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Consequent::Accept => "A",
+                Consequent::Reject => "R",
+                Consequent::Move(s) => s,
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
 enum Op {
-    LT,
-    GT,
+    LessThan,
+    GreaterThan,
 }
 
 impl Op {
     fn apply(&self, amount1: i64, amount2: i64) -> bool {
         match self {
-            Op::LT => amount1 < amount2,
-            Op::GT => amount1 > amount2,
+            Op::LessThan => amount1 < amount2,
+            Op::GreaterThan => amount1 > amount2,
         }
     }
 }
 
-#[derive(Debug)]
+impl Display for Op {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Op::LessThan => '<',
+                Op::GreaterThan => '>',
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
 struct Rule {
     condition_field: Field,
     condition_op: Op,
@@ -168,9 +211,9 @@ impl FromStr for Rule {
         let consequent = consequent.parse()?;
 
         let (op, condition_op) = if antecedent.contains('<') {
-            ('<', Op::LT)
+            ('<', Op::LessThan)
         } else {
-            ('>', Op::GT)
+            ('>', Op::GreaterThan)
         };
 
         let (field, amount) = split_on(antecedent, op).context(format!("invalid rule: {}", s))?;
@@ -186,6 +229,16 @@ impl FromStr for Rule {
     }
 }
 
+impl Display for Rule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}{}:{}",
+            self.condition_field, self.condition_op, self.condition_amount, self.consequent
+        )
+    }
+}
+
 impl Rule {
     fn apply(&self, part: &Part) -> Option<&Consequent> {
         let amount1 = part[self.condition_field];
@@ -198,10 +251,21 @@ impl Rule {
     }
 }
 
+#[derive(Debug, Clone)]
 struct Workflow {
     name: String,
     rules: Vec<Rule>,
     fallback: Consequent,
+}
+
+impl Display for Workflow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{{", self.name)?;
+        for rule in self.rules.iter() {
+            write!(f, "{},", rule)?;
+        }
+        write!(f, "{}}})", self.fallback)
+    }
 }
 
 impl FromStr for Workflow {
@@ -242,38 +306,82 @@ impl Workflow {
     }
 }
 
-fn apply(machine: &HashMap<String, Workflow>, part: &Part) -> Result<bool> {
-    let mut state = "in".to_owned();
-    loop {
-        let workflow = machine
-            .get(&state)
-            .with_context(|| format!("missing state: {}", state))?;
-        match workflow.apply(part) {
-            Consequent::ACCEPT => {
-                return Ok(true);
-            }
-            Consequent::REJECT => {
-                return Ok(false);
-            }
-            Consequent::MOVE(next) => {
-                state = next.clone();
+#[derive(Debug)]
+struct Machine {
+    workflows: HashMap<String, Workflow>,
+}
+
+impl Machine {
+    fn apply(&self, part: &Part) -> Result<bool> {
+        let mut state = "in".to_owned();
+        loop {
+            let workflow = self
+                .workflows
+                .get(&state)
+                .with_context(|| format!("missing state: {}", state))?;
+            match workflow.apply(part) {
+                Consequent::Accept => {
+                    return Ok(true);
+                }
+                Consequent::Reject => {
+                    return Ok(false);
+                }
+                Consequent::Move(next) => {
+                    state = next.clone();
+                }
             }
         }
     }
-}
 
-fn apply_all(machine: &HashMap<String, Workflow>, parts: &Vec<Part>) -> Result<i64> {
-    let mut total = 0;
-    for part in parts.iter() {
-        if apply(machine, part)? {
-            total += part.score();
+    fn apply_all(&self, parts: &Vec<Part>) -> Result<i64> {
+        let mut total = 0;
+        for part in parts.iter() {
+            if self.apply(part)? {
+                total += part.score();
+            }
         }
+        Ok(total)
     }
-    Ok(total)
+
+    // Does a topological sort of all workflows, based on dependencies.
+    fn sort_workflows(&self) -> Vec<Workflow> {
+        let mut sorted: Vec<Workflow> = Vec::new();
+        let mut sorted_keys: HashSet<String> = HashSet::new();
+        let mut unsorted: VecDeque<&Workflow> = VecDeque::new();
+
+        for (_, workflow) in self.workflows.iter() {
+            unsorted.push_back(workflow);
+        }
+
+        while let Some(workflow) = unsorted.pop_front() {
+            let mut leaf = true;
+            for rule in workflow.rules.iter() {
+                if let Consequent::Move(dep) = &rule.consequent {
+                    if !sorted_keys.contains(&dep[..]) {
+                        leaf = false;
+                        break;
+                    }
+                }
+            }
+            if let Consequent::Move(dep) = &workflow.fallback {
+                if !sorted_keys.contains(&dep[..]) {
+                    leaf = false;
+                }
+            }
+            if leaf {
+                sorted.push(workflow.clone());
+                sorted_keys.insert(workflow.name.clone());
+            } else {
+                unsorted.push_back(workflow);
+            }
+        }
+
+        sorted
+    }
 }
 
-fn read_input(path: &str) -> Result<(HashMap<String, Workflow>, Vec<Part>)> {
-    let mut machine = HashMap::new();
+fn read_input(path: &str) -> Result<(Machine, Vec<Part>)> {
+    let mut workflows = HashMap::new();
     let mut parts = Vec::new();
 
     let f = File::open(path)?;
@@ -296,10 +404,11 @@ fn read_input(path: &str) -> Result<(HashMap<String, Workflow>, Vec<Part>)> {
             parts.push(line.parse()?);
         } else {
             let workflow: Workflow = line.parse()?;
-            machine.insert(workflow.name.clone(), workflow);
+            workflows.insert(workflow.name.clone(), workflow);
         }
     }
 
+    let machine = Machine { workflows };
     Ok((machine, parts))
 }
 
@@ -315,8 +424,16 @@ struct Args {
 
 fn process(args: &Args) -> Result<()> {
     let (machine, parts) = read_input(args.input.as_str())?;
-    let ans = apply_all(&machine, &parts)?;
+    let ans = machine.apply_all(&parts)?;
     println!("ans1 = {}", ans);
+
+    let sorted = machine.sort_workflows();
+    if args.debug {
+        for workflow in sorted.iter() {
+            println!("{}", workflow);
+        }
+    }
+
     Ok(())
 }
 
