@@ -1,8 +1,13 @@
 use advent::common::{read_lines, split_on, Array2D, StrIterator};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
+use itertools::Itertools;
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
-use std::{collections::VecDeque, str::FromStr, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    str::FromStr,
+    time::Duration,
+};
 
 #[derive(Debug)]
 enum Direction {
@@ -199,25 +204,18 @@ fn count_unfilled(grid: &Array2D<Cell>) -> u64 {
     total
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct VerticalSegment {
     column: i64,
     min_row: i64,
     max_row: i64,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct HorizontalSegment {
     row: i64,
     min_col: i64,
     max_col: i64,
-}
-
-// A line segment of the trench.
-#[derive(Clone, Copy)]
-enum Segment {
-    Vertical(VerticalSegment),
-    Horizontal(HorizontalSegment),
 }
 
 fn create_segments(records: &Vec<Record>) -> (Vec<HorizontalSegment>, Vec<VerticalSegment>) {
@@ -268,28 +266,141 @@ fn compute_area_for_row(
     row: i64,
     horizontal: &Vec<HorizontalSegment>,
     vertical: &Vec<VerticalSegment>,
-) {
+    debug: bool,
+) -> Result<i64> {
+    if debug {
+        println!("computing area for row {}", row);
+    }
+
     // Find all the horizontal segments on this row.
+    let horizontal = horizontal.iter().filter(|seg| seg.row == row).collect_vec();
+
     // Find all the vertical segments that cross this row.
+    let mut vertical = vertical
+        .iter()
+        .filter(|seg| row >= seg.min_row && row <= seg.max_row)
+        .collect_vec();
+
     // Sort all the segments by either min_col or col.
-    // For each segment:
-    //    You could switch each vertical row, but only if it's not at the end of a horizontal row
-    //    and going the same direction as the previous vertical row, arg.
-    //    Basically, you want to know if you're on a corner or not, and which corner.
+    let mut h_map = HashMap::new();
+    for h in horizontal {
+        h_map.insert(h.min_col, h.clone());
+    }
+    vertical.sort_by_key(|seg| seg.column);
+
+    let mut total = i64::MIN;
+    let mut inside = false;
+    let mut top_edge = false;
+    let mut trailing_edge: Option<HorizontalSegment> = None;
+    let mut previous_column = 0i64;
+    for v_seg in vertical {
+        if debug {
+            println!("considering vertical segment {:?}", v_seg);
+        }
+        let column = v_seg.column;
+
+        if inside {
+            // Add up the traversed area.
+            if column <= previous_column {
+                bail!(
+                    "hit the same column twice {} vs {}.",
+                    column,
+                    previous_column
+                );
+            }
+            total += column - previous_column + 1;
+        }
+        previous_column = column;
+
+        if let Some(h_seg) = trailing_edge {
+            // This better be the end of an edge.
+            if debug {
+                println!("this is a trailing edge");
+            }
+            if column != h_seg.max_col {
+                bail!("edge does not end at corner.");
+            }
+            trailing_edge = None;
+
+            if v_seg.min_row == row {
+                // This is the top edge of the corner.
+                if !top_edge {
+                    inside = !inside;
+                }
+            } else if v_seg.max_row == row {
+                // This is the bottom edge of the corner.
+                if top_edge {
+                    inside = !inside;
+                }
+            } else {
+                bail!("found a t-junction.");
+            }
+        } else if let Some(h_seg) = h_map.get(&column) {
+            // This is a leading edge.
+            if debug {
+                println!("this is a leading edge");
+            }
+            trailing_edge = Some(h_seg.clone());
+            if v_seg.min_row == row {
+                top_edge = true;
+            } else if v_seg.max_row == row {
+                top_edge = false;
+            } else {
+                bail!("found a t-junction.");
+            }
+        } else {
+            // This is not any kind of corner.
+            if debug {
+                println!("this is a not a corner");
+            }
+            inside = !inside;
+        }
+    }
+
+    if inside {
+        bail!("still inside at end of row {}", row);
+    }
+
+    Ok(total)
 }
 
-fn find_area_by_segments(records: &Vec<Record>) {
+fn compute_area_by_segments(records: &Vec<Record>, debug: bool) -> Result<i64> {
+    let mut total = 0;
+
     // Get all segments.
-    let (mut horizontal, mut vertical) = create_segments(records);
+    let (mut horizontal, vertical) = create_segments(records);
 
     // Sort horizontal segments by row.
     horizontal.sort_by_key(|seg| seg.row);
 
-    // For each row
-    //   If there was a previous row:
-    //     If the previous was more than 1 before this one:
-    //       Compute the area for the row above this one.
-    //   Compute the area for this row.
+    let mut previous_row = None;
+    for segment in horizontal.iter() {
+        if debug {
+            println!("considering horizontal segment {:?}", segment);
+        }
+        let row = segment.row;
+
+        if let Some(prev) = previous_row {
+            if prev == row {
+                continue;
+            }
+            if prev != row - 1 {
+                // Compute the area for the row above this one.
+                let row_area = compute_area_for_row(row - 1, &horizontal, &vertical, debug)?;
+
+                // Multiply it by the height.
+                let height = row - prev - 1;
+                let area = row_area * height;
+                total += area;
+            }
+        }
+
+        previous_row = Some(row);
+        let row_area = compute_area_for_row(row, &horizontal, &vertical, debug)?;
+        total += row_area;
+    }
+
+    Ok(total)
 }
 
 #[derive(Parser, Debug)]
@@ -364,7 +475,12 @@ fn process(args: &Args) -> Result<()> {
     if args.debug {
         display_grid(&grid)?;
     }
-    println!("ans: {}", count_unfilled(&grid));
+    let ans = count_unfilled(&grid);
+    println!("ans (method 1): {}", ans);
+
+    let ans = compute_area_by_segments(&input, args.debug)?;
+    println!("ans (method 2): {}", ans);
+
     Ok(())
 }
 
