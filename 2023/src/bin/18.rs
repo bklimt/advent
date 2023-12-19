@@ -199,6 +199,83 @@ fn count_unfilled(grid: &Array2D<Cell>) -> u64 {
     total
 }
 
+// A line segment of the trench.
+#[derive(Clone, Copy)]
+enum Segment {
+    Vertical {
+        column: i64,
+        min_row: i64,
+        max_row: i64,
+    },
+    Horizontal {
+        row: i64,
+        min_col: i64,
+        max_col: i64,
+    },
+}
+
+fn create_segments(records: &Vec<Record>) -> Vec<Segment> {
+    let mut v = Vec::new();
+    let mut r = 0i64;
+    let mut c = 0i64;
+    for rec in records {
+        match rec.dir {
+            Direction::Up => {
+                v.push(Segment::Vertical {
+                    column: c,
+                    min_row: r - rec.amount,
+                    max_row: r,
+                });
+                r -= rec.amount;
+            }
+            Direction::Down => {
+                v.push(Segment::Vertical {
+                    column: c,
+                    min_row: r,
+                    max_row: r + rec.amount,
+                });
+                r += rec.amount;
+            }
+            Direction::Left => {
+                v.push(Segment::Horizontal {
+                    row: r,
+                    min_col: c - rec.amount,
+                    max_col: c,
+                });
+                c -= rec.amount;
+            }
+            Direction::Right => {
+                v.push(Segment::Horizontal {
+                    row: r,
+                    min_col: c,
+                    max_col: c + rec.amount,
+                });
+                c += rec.amount;
+            }
+        };
+    }
+    v
+}
+
+fn compute_area_for_row(r: i64) {
+    // Find all the horizontal segments on this row.
+    // Find all the vertical segments that cross this row.
+    // Sort all the segments by either min_col or col.
+    // For each segment:
+    //    You could switch each vertical row, but only if it's not at the end of a horizontal row
+    //    and going the same direction as the previous vertical row, arg.
+    //    Basically, you want to know if you're on a corner or not, and which corner.
+}
+
+fn find_area_by_segments() {
+    // Sort horizontal segments by row.
+    // For each row
+    //   If there was a previous row:
+    //     If the previous was more than 1 before this one:
+    //       Compute the area for the row above this one.
+    //   Compute the area for this row.
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
