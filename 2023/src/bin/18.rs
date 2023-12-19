@@ -1,13 +1,11 @@
-use advent::common::{read_lines, split_on, Array2D, StrIterator};
+use advent::common::{read_lines, split_on, Array2D};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
 use itertools::Itertools;
 use sdl2::{event::Event, keyboard::Keycode, pixels::Color, rect::Rect};
-use std::{
-    collections::{HashMap, VecDeque},
-    str::FromStr,
-    time::Duration,
-};
+use std::collections::{HashMap, VecDeque};
+use std::str::FromStr;
+use std::time::Duration;
 
 #[derive(Debug)]
 enum Direction {
@@ -30,6 +28,18 @@ impl FromStr for Direction {
             Some('L') => Ok(Direction::Left),
             Some('R') => Ok(Direction::Right),
             _ => Err(anyhow!("invalid direction: {}", s)),
+        }
+    }
+}
+
+impl Direction {
+    fn from_digit(c: char) -> Result<Self> {
+        match c {
+            '0' => Ok(Direction::Right),
+            '1' => Ok(Direction::Down),
+            '2' => Ok(Direction::Left),
+            '3' => Ok(Direction::Up),
+            _ => Err(anyhow!("invalid direction: {}", c)),
         }
     }
 }
@@ -68,27 +78,37 @@ struct Record {
     color: CellColor,
 }
 
-impl FromStr for Record {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let (dir, rest) = split_on(s, ' ').context("missing first space")?;
-        let (amount, color) = split_on(rest, ' ').context("missing second space")?;
+impl Record {
+    fn from_str(s: &str, part2: bool) -> Result<Self> {
+        let (dir1, rest) = split_on(s, ' ').context("missing first space")?;
+        let (amount1, color) = split_on(rest, ' ').context("missing second space")?;
         if color.len() != 9 {
             bail!("invalid color part: {}", color)
         }
         let color = &color[1..8];
 
-        let dir = dir.parse()?;
-        let amount = amount.parse()?;
+        let dir1 = dir1.parse()?;
+        let dir2 = Direction::from_digit(color[6..].chars().next().expect("checked bounds"))?;
+
+        let amount1 = amount1.parse()?;
+        let amount2 = i64::from_str_radix(&color[1..6], 16)
+            .with_context(|| format!("invalid hex: {}", &color[1..6]))?;
+
         let color = color.parse()?;
+
+        let dir = if part2 { dir2 } else { dir1 };
+        let amount = if part2 { amount2 } else { amount1 };
 
         Ok(Record { dir, amount, color })
     }
 }
 
-fn read_input(path: &str) -> Result<Vec<Record>> {
-    Ok(read_lines(path)?.parse_all()?)
+fn read_input(path: &str, part2: bool) -> Result<Vec<Record>> {
+    let mut v = Vec::new();
+    for line in read_lines(path)? {
+        v.push(Record::from_str(line.as_str(), part2)?);
+    }
+    Ok(v)
 }
 
 #[derive(Clone)]
@@ -224,38 +244,40 @@ fn create_segments(records: &Vec<Record>) -> (Vec<HorizontalSegment>, Vec<Vertic
     let mut r = 0i64;
     let mut c = 0i64;
     for rec in records {
-        match rec.dir {
+        let amount = rec.amount;
+        let dir = &rec.dir;
+        match dir {
             Direction::Up => {
                 v.push(VerticalSegment {
                     column: c,
-                    min_row: r - rec.amount,
+                    min_row: r - amount,
                     max_row: r,
                 });
-                r -= rec.amount;
+                r -= amount;
             }
             Direction::Down => {
                 v.push(VerticalSegment {
                     column: c,
                     min_row: r,
-                    max_row: r + rec.amount,
+                    max_row: r + amount,
                 });
-                r += rec.amount;
+                r += amount;
             }
             Direction::Left => {
                 h.push(HorizontalSegment {
                     row: r,
-                    min_col: c - rec.amount,
+                    min_col: c - amount,
                     max_col: c,
                 });
-                c -= rec.amount;
+                c -= amount;
             }
             Direction::Right => {
                 h.push(HorizontalSegment {
                     row: r,
                     min_col: c,
-                    max_col: c + rec.amount,
+                    max_col: c + amount,
                 });
-                c += rec.amount;
+                c += amount;
             }
         };
     }
@@ -326,13 +348,7 @@ fn compute_area_for_row(
                     previous_column
                 );
             }
-            let seg_len = column - previous_column + 1;
-            if debug {
-                println!("adding segment length {}", seg_len);
-            }
-            total += seg_len;
         }
-        previous_column = column;
 
         if let Some(h_seg) = trailing_edge {
             // This better be the end of an edge.
@@ -348,26 +364,27 @@ fn compute_area_for_row(
                 // This is the top edge of the corner.
                 if !top_edge {
                     inside = !inside;
-                    // Don't double count the corner itself.
-                    total -= 1;
                 }
             } else if v_seg.max_row == row {
                 // This is the bottom edge of the corner.
                 if top_edge {
                     inside = !inside;
-                    // Don't double count the corner itself.
-                    total -= 1;
                 }
             } else {
                 bail!("found a t-junction.");
             }
         } else if let Some(h_seg) = h_map.get(&column) {
             // This is a leading edge.
+            let old_seg_len = if inside { column - previous_column } else { 1 };
+            let new_seg_len = h_seg.max_col - h_seg.min_col;
+            let seg_len = old_seg_len + new_seg_len;
             if debug {
-                let seg_len = h_seg.max_col - h_seg.min_col + 1;
-                println!("this is a leading edge. adding length {}", seg_len);
-                total += seg_len;
+                println!(
+                    "this is a leading edge. adding length {} + {} = {}",
+                    old_seg_len, new_seg_len, seg_len
+                );
             }
+            total += seg_len;
             trailing_edge = Some(h_seg.clone());
             if v_seg.min_row == row {
                 top_edge = true;
@@ -378,17 +395,24 @@ fn compute_area_for_row(
             }
         } else {
             // This is not any kind of corner.
+            let seg_len = if inside { column - previous_column } else { 1 };
             if debug {
-                println!("this is a not a corner");
+                println!("this is not a corner. adding length {}", seg_len);
             }
+            total += seg_len;
             inside = !inside;
         }
+
+        previous_column = column;
     }
 
     if inside {
         bail!("still inside at end of row {}", row);
     }
 
+    if debug {
+        println!("returning area {} for row {}", total, row);
+    }
     Ok(total)
 }
 
@@ -421,7 +445,7 @@ fn compute_area_by_segments(records: &Vec<Record>, debug: bool) -> Result<i64> {
                 let area = row_area * height;
                 if debug {
                     println!(
-                        "add area for previous section with row {} * height {} = {}",
+                        "add area for previous section with row area {} * height {} = {}",
                         row_area, height, area
                     );
                 }
@@ -454,6 +478,7 @@ fn display_grid(grid: &Array2D<Cell>) -> Result<()> {
     let window = video_subsystem
         .window("AoC 2023 - Day 18", 1920, 1080)
         .position_centered()
+        .resizable()
         .build()
         .unwrap();
 
@@ -502,19 +527,33 @@ fn display_grid(grid: &Array2D<Cell>) -> Result<()> {
     Ok(())
 }
 
-fn process(args: &Args) -> Result<()> {
-    let input = read_input(args.input.as_str())?;
+fn part1(args: &Args) -> Result<()> {
+    let input = read_input(args.input.as_str(), false)?;
     let mut grid = create_grid(&input, args.debug)?;
     fill(&mut grid);
+    let ans = count_unfilled(&grid);
+    println!("ans 1 (method 1): {}", ans);
+
+    let ans = compute_area_by_segments(&input, args.debug)?;
+    println!("ans 1 (method 2): {}", ans);
+
     if args.debug {
         display_grid(&grid)?;
     }
-    let ans = count_unfilled(&grid);
-    println!("ans (method 1): {}", ans);
 
+    Ok(())
+}
+
+fn part2(args: &Args) -> Result<()> {
+    let input = read_input(args.input.as_str(), true)?;
     let ans = compute_area_by_segments(&input, args.debug)?;
-    println!("ans (method 2): {}", ans);
+    println!("ans 2 (method 2): {}", ans);
+    Ok(())
+}
 
+fn process(args: &Args) -> Result<()> {
+    part1(args)?;
+    part2(args)?;
     Ok(())
 }
 
