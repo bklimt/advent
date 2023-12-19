@@ -264,7 +264,7 @@ impl Display for Workflow {
         for rule in self.rules.iter() {
             write!(f, "{},", rule)?;
         }
-        write!(f, "{}}})", self.fallback)
+        write!(f, "{}}}", self.fallback)
     }
 }
 
