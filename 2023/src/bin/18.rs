@@ -284,24 +284,6 @@ fn create_segments(records: &Vec<Record>) -> (Vec<HorizontalSegment>, Vec<Vertic
     (h, v)
 }
 
-/*
- * TODO: There's a bug here where:
- * 1) This gets counted as 6:
- *     ######
- *   > #    #
- *     ######
- * 2) This gets count as 6:
- *   > ######
- *     #    #
- *     ######
- * 3) But this gets counted as 6 + 6 = 12, not 11.
- *          ######
- *          #    #
- *     ######    #
- *     #         #
- *     ###########
- */
-
 fn compute_area_for_row(
     row: i64,
     horizontal: &Vec<HorizontalSegment>,
