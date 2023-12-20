@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{self, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::ops::{Index, IndexMut};
+use std::ops::{Index, IndexMut, RangeInclusive};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
@@ -306,6 +306,88 @@ impl Workflow {
     }
 }
 
+type Range = RangeInclusive<usize>;
+
+// Given a range and a condition, returns the subrange that matches the condition and the subrange that doesn't.
+fn split_range(range: &Range, rule: &Rule) -> (Option<Range>, Option<Range>) {
+    let n = rule.condition_amount as usize;
+    let start = *range.start();
+    let end = *range.end();
+    match rule.condition_op {
+        Op::LessThan => {
+            if n <= *range.start() {
+                (None, Some(start..=end))
+            } else if n > *range.end() {
+                (Some(start..=end), None)
+            } else {
+                (Some(start..=n - 1), Some(n..=end))
+            }
+        }
+        Op::GreaterThan => {
+            if n >= *range.end() {
+                (None, Some(start..=end))
+            } else if n < *range.start() {
+                (Some(start..=end), None)
+            } else {
+                (Some(n + 1..=end), Some(start..=n))
+            }
+        }
+    }
+}
+
+fn range_len(range: &Range) -> usize {
+    (range.end() + 1) - range.start()
+}
+
+#[derive(Clone, Debug)]
+struct Constraints {
+    x: Range,
+    m: Range,
+    a: Range,
+    s: Range,
+}
+
+impl Constraints {
+    fn new() -> Self {
+        Constraints {
+            x: 1..=4000,
+            m: 1..=4000,
+            a: 1..=4000,
+            s: 1..=4000,
+        }
+    }
+
+    // Creates a new Constraints with the constraints for field replaced with range.
+    fn with(&self, field: &Field, range: Range) -> Constraints {
+        let mut copy: Constraints = self.clone();
+        match field {
+            Field::X => copy.x = range,
+            Field::M => copy.m = range,
+            Field::A => copy.a = range,
+            Field::S => copy.s = range,
+        }
+        copy
+    }
+
+    // Split the constraints into the set the matches the rule and the set that doesn't.
+    fn split(&self, rule: &Rule) -> (Option<Constraints>, Option<Constraints>) {
+        let start_range = match rule.condition_field {
+            Field::X => &self.x,
+            Field::M => &self.m,
+            Field::A => &self.a,
+            Field::S => &self.s,
+        };
+        let (r1, r2) = split_range(start_range, rule);
+        let c1 = r1.map(|r| self.with(&rule.condition_field, r));
+        let c2 = r2.map(|r| self.with(&rule.condition_field, r));
+        (c1, c2)
+    }
+
+    fn count(&self) -> usize {
+        range_len(&self.x) * range_len(&self.m) * range_len(&self.a) * range_len(&self.s)
+    }
+}
+
 #[derive(Debug)]
 struct Machine {
     workflows: HashMap<String, Workflow>,
@@ -341,6 +423,78 @@ impl Machine {
             }
         }
         Ok(total)
+    }
+
+    fn count_possibilities_internal(
+        &self,
+        state: &str,
+        constraints: Constraints,
+        debug: bool,
+    ) -> usize {
+        if debug {
+            println!("counting possibilities for {} in {:?}", state, constraints);
+        }
+        let mut total = 0;
+        let mut current_constraints = constraints;
+        let workflow = self.workflows.get(state).expect("missing constraint");
+        for rule in workflow.rules.iter() {
+            if debug {
+                println!(
+                    "applying {} rule {} to {:?}",
+                    state, rule, current_constraints
+                );
+            }
+            let (c1, c2) = current_constraints.split(rule);
+            if let Some(c) = c1 {
+                if debug {
+                    println!("rule {} yields constraints {:?}", rule, c);
+                }
+                match &rule.consequent {
+                    Consequent::Accept => total += c.count(),
+                    Consequent::Reject => {}
+                    Consequent::Move(dest) => {
+                        total += self.count_possibilities_internal(dest, c, debug)
+                    }
+                }
+            } else {
+                if debug {
+                    println!("rule {} didn't match anything", rule);
+                }
+            }
+            match c2 {
+                Some(c) => current_constraints = c,
+                None => {
+                    if debug {
+                        println!(
+                            "returning {} for {}, because the constraint set is empty",
+                            total, state
+                        );
+                    }
+                    return total;
+                }
+            }
+        }
+        if debug {
+            println!(
+                "applying {} fallback {} to {:?}",
+                state, &workflow.fallback, current_constraints
+            );
+        }
+        match &workflow.fallback {
+            Consequent::Accept => total += current_constraints.count(),
+            Consequent::Reject => {}
+            Consequent::Move(dest) => {
+                total += self.count_possibilities_internal(dest, current_constraints, debug)
+            }
+        }
+        if debug {
+            println!("returning {} for {}", total, state);
+        }
+        total
+    }
+
+    fn count_possibilities(&self, debug: bool) -> usize {
+        self.count_possibilities_internal("in", Constraints::new(), debug)
     }
 
     // Does a topological sort of all workflows, based on dependencies.
@@ -424,15 +578,18 @@ struct Args {
 
 fn process(args: &Args) -> Result<()> {
     let (machine, parts) = read_input(args.input.as_str())?;
-    let ans = machine.apply_all(&parts)?;
-    println!("ans1 = {}", ans);
-
-    let sorted = machine.sort_workflows();
     if args.debug {
+        let sorted = machine.sort_workflows();
         for workflow in sorted.iter() {
             println!("{}", workflow);
         }
     }
+
+    let ans1 = machine.apply_all(&parts)?;
+    println!("ans1 = {}", ans1);
+
+    let ans2 = machine.count_possibilities(args.debug);
+    println!("ans2 = {}", ans2);
 
     Ok(())
 }
