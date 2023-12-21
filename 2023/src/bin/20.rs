@@ -239,6 +239,11 @@ fn part1(modules: &mut HashMap<String, Module>, debug: bool) -> Result<u64> {
     Ok(low * high)
 }
 
+// TODO: This never finishes. The inputs to zh are all independent subgraphs.
+// So, we could find cycles in those subgraphs, and if they cycles with no
+// excess, like in one of the previous days, then we could take the lcm of
+// those cycle lengths. But that requires a bunch of manual effort, and is
+// based on the unwarranted assumption about cycle lengths.
 fn part2(modules: &mut HashMap<String, Module>, debug: bool) -> Result<u64> {
     let mut i = 0;
     loop {
