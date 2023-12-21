@@ -1,6 +1,7 @@
 use advent::common::{read_grid, Array2D};
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use indicatif::ProgressBar;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -107,6 +108,7 @@ fn is_reachable(grid: &Array2D<Option<Plot>>, r: usize, c: usize, part2: bool) -
 }
 fn process(args: &Args) -> Result<()> {
     let mut grid = read_input(&args.input)?;
+    let progress = ProgressBar::new(args.iterations as u64);
     for _ in 1..=args.iterations {
         for r in 0..grid.rows() {
             for c in 0..grid.columns() {
@@ -129,7 +131,10 @@ fn process(args: &Args) -> Result<()> {
                 }
             }
         }
+
+        progress.inc(1);
     }
+    progress.finish();
 
     let mut total = 0;
     for r in 0..grid.rows() {
