@@ -2,11 +2,9 @@ use advent::common::{read_lines, StrIterator};
 use anyhow::{Context, Result};
 use clap::Parser;
 use itertools::Itertools;
-use std::{
-    collections::{HashMap, VecDeque},
-    fmt::Display,
-    str::FromStr,
-};
+use std::collections::{HashMap, VecDeque};
+use std::fmt::Display;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
 enum SignalLevel {
@@ -157,7 +155,11 @@ fn read_input(path: &str) -> Result<HashMap<String, Module>> {
     Ok(map)
 }
 
-fn run_once(modules: &mut HashMap<String, Module>, debug: bool) -> Result<(u64, u64, bool)> {
+fn run_once(
+    iteration: u64,
+    modules: &mut HashMap<String, Module>,
+    debug: bool,
+) -> Result<(u64, u64, bool)> {
     let mut low = 0;
     let mut high = 0;
     let mut rx = false;
@@ -168,6 +170,12 @@ fn run_once(modules: &mut HashMap<String, Module>, debug: bool) -> Result<(u64, 
         level: SignalLevel::Low,
     });
     while let Some(signal) = q.pop_front() {
+        // This prints out the useful signals for part 2.
+        if signal.receiver == "zh" {
+            if let SignalLevel::High = signal.level {
+                println!("{} {}", signal.sender, iteration);
+            }
+        }
         if debug {
             println!("{}", signal);
         }
@@ -231,24 +239,28 @@ fn run_once(modules: &mut HashMap<String, Module>, debug: bool) -> Result<(u64, 
 fn part1(modules: &mut HashMap<String, Module>, debug: bool) -> Result<u64> {
     let mut low = 0;
     let mut high = 0;
-    for _ in 0..1000 {
-        let (l, h, _) = run_once(modules, debug)?;
+    for i in 0..1000 {
+        let (l, h, _) = run_once(i, modules, debug)?;
         low += l;
         high += h;
     }
     Ok(low * high)
 }
 
-// TODO: This never finishes. The inputs to zh are all independent subgraphs.
-// So, we could find cycles in those subgraphs, and if they cycles with no
-// excess, like in one of the previous days, then we could take the lcm of
-// those cycle lengths. But that requires a bunch of manual effort, and is
-// based on the unwarranted assumption about cycle lengths.
+// This never finishes, but causes us to output the data needed for part 2.
+// Looking at the input data, zh has to send low.
+// Each of zh's inputs is an independent graph.
+// zh's inputs occur at these offsets:
+// bh 3761
+// ns 3767
+// dl 3779
+// vd 3881
+// They have an lcm of 207787533680413.
 fn part2(modules: &mut HashMap<String, Module>, debug: bool) -> Result<u64> {
     let mut i = 0;
     loop {
         i += 1;
-        let (_, _, rx) = run_once(modules, debug)?;
+        let (_, _, rx) = run_once(i, modules, debug)?;
         if rx {
             return Ok(i);
         }
@@ -263,6 +275,9 @@ struct Args {
 
     #[arg(long)]
     debug: bool,
+
+    #[arg(long)]
+    part2: bool,
 }
 
 fn process(args: &Args) -> Result<()> {
@@ -277,9 +292,11 @@ fn process(args: &Args) -> Result<()> {
     let ans1 = part1(&mut modules, args.debug)?;
     println!("ans1 = {}", ans1);
 
-    let mut modules = read_input(args.input.as_str())?;
-    let ans2 = part2(&mut modules, args.debug)?;
-    println!("ans2 = {}", ans2);
+    if args.part2 {
+        let mut modules = read_input(args.input.as_str())?;
+        let ans2 = part2(&mut modules, args.debug)?;
+        println!("ans2 = {}", ans2);
+    }
 
     Ok(())
 }
