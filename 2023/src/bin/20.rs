@@ -272,6 +272,7 @@ fn process(args: &Args) -> Result<()> {
     let ans1 = part1(&mut modules, args.debug)?;
     println!("ans1 = {}", ans1);
 
+    let mut modules = read_input(args.input.as_str())?;
     let ans2 = part2(&mut modules, args.debug)?;
     println!("ans2 = {}", ans2);
 
