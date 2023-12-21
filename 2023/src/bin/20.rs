@@ -50,6 +50,7 @@ enum ModuleType {
         states: HashMap<String, SignalLevel>,
     },
     Output,
+    Rx,
 }
 
 #[derive(Debug)]
@@ -142,74 +143,111 @@ fn read_input(path: &str) -> Result<HashMap<String, Module>> {
             outputs: Vec::new(),
         },
     );
+    map.insert(
+        "rx".to_owned(),
+        Module {
+            typ: ModuleType::Rx,
+            name: "rx".to_owned(),
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+        },
+    );
     initialize_inputs(&mut map);
     initialize_conjunctions(&mut map);
     Ok(map)
 }
 
-fn run(modules: &mut HashMap<String, Module>, debug: bool) -> Result<u64> {
+fn run_once(modules: &mut HashMap<String, Module>, debug: bool) -> Result<(u64, u64, bool)> {
+    let mut low = 0;
+    let mut high = 0;
+    let mut rx = false;
+    let mut q = VecDeque::new();
+    q.push_back(Signal {
+        sender: "button".to_owned(),
+        receiver: "broadcaster".to_owned(),
+        level: SignalLevel::Low,
+    });
+    while let Some(signal) = q.pop_front() {
+        if debug {
+            println!("{}", signal);
+        }
+        match &signal.level {
+            SignalLevel::Low => low += 1,
+            SignalLevel::High => high += 1,
+        }
+        let module = modules
+            .get_mut(&signal.receiver)
+            .context(format!("output module {} not in input", signal.receiver))?;
+        let output_level = match &mut module.typ {
+            ModuleType::FlipFlop { on } => {
+                if let SignalLevel::Low = signal.level {
+                    *on = !*on;
+                    if *on {
+                        SignalLevel::High
+                    } else {
+                        SignalLevel::Low
+                    }
+                } else {
+                    continue;
+                }
+            }
+            ModuleType::Conjunction { states } => {
+                states.insert(signal.sender.clone(), signal.level);
+                let mut all_high = true;
+                for (_, level) in states.iter() {
+                    if let SignalLevel::Low = level {
+                        all_high = false;
+                        break;
+                    }
+                }
+                if all_high {
+                    SignalLevel::Low
+                } else {
+                    SignalLevel::High
+                }
+            }
+            ModuleType::Broadcaster => signal.level,
+            ModuleType::Output => {
+                continue;
+            }
+            ModuleType::Rx => {
+                if let SignalLevel::Low = signal.level {
+                    rx = true;
+                }
+                continue;
+            }
+        };
+        for output in module.outputs.iter() {
+            q.push_back(Signal {
+                sender: signal.receiver.clone(),
+                receiver: output.clone(),
+                level: output_level.clone(),
+            });
+        }
+    }
+    Ok((low, high, rx))
+}
+
+fn part1(modules: &mut HashMap<String, Module>, debug: bool) -> Result<u64> {
     let mut low = 0;
     let mut high = 0;
     for _ in 0..1000 {
-        let mut q = VecDeque::new();
-        q.push_back(Signal {
-            sender: "button".to_owned(),
-            receiver: "broadcaster".to_owned(),
-            level: SignalLevel::Low,
-        });
-        while let Some(signal) = q.pop_front() {
-            if debug {
-                println!("{}", signal);
-            }
-            match &signal.level {
-                SignalLevel::Low => low += 1,
-                SignalLevel::High => high += 1,
-            }
-            if let Some(module) = modules.get_mut(&signal.receiver) {
-                let output_level = match &mut module.typ {
-                    ModuleType::FlipFlop { on } => {
-                        if let SignalLevel::Low = signal.level {
-                            *on = !*on;
-                            if *on {
-                                SignalLevel::High
-                            } else {
-                                SignalLevel::Low
-                            }
-                        } else {
-                            continue;
-                        }
-                    }
-                    ModuleType::Conjunction { states } => {
-                        states.insert(signal.sender.clone(), signal.level);
-                        let mut all_high = true;
-                        for (_, level) in states.iter() {
-                            if let SignalLevel::Low = level {
-                                all_high = false;
-                                break;
-                            }
-                        }
-                        if all_high {
-                            SignalLevel::Low
-                        } else {
-                            SignalLevel::High
-                        }
-                    }
-                    ModuleType::Broadcaster => signal.level,
-                    ModuleType::Output { .. } => {
-                        continue;
-                    }
-                };
-                for output in module.outputs.iter() {
-                    q.push_back(Signal {
-                        sender: signal.receiver.clone(),
-                        receiver: output.clone(),
-                        level: output_level.clone(),
-                    });
-                }
-            }
-        }
+        let (l, h, _) = run_once(modules, debug)?;
+        low += l;
+        high += h;
     }
     Ok(low * high)
+}
+
+fn part2(modules: &mut HashMap<String, Module>, debug: bool) -> Result<u64> {
+    let mut i = 0;
+    loop {
+        i += 1;
+        let (_, _, rx) = run_once(modules, debug)?;
+        if rx {
+            return Ok(i);
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -231,8 +269,11 @@ fn process(args: &Args) -> Result<()> {
         println!("");
     }
 
-    let ans1 = run(&mut modules, args.debug)?;
+    let ans1 = part1(&mut modules, args.debug)?;
     println!("ans1 = {}", ans1);
+
+    let ans2 = part2(&mut modules, args.debug)?;
+    println!("ans2 = {}", ans2);
 
     Ok(())
 }
