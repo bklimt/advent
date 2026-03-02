@@ -29,13 +29,11 @@ part1 text =
 -- Returns an assoc list that maps number to its frequency. The input list must be sorted.
 countElements :: (Num b, Eq a) => [a] -> [(a, b)]
 countElements [] = []
-countElements [x] = [(x, 1)]
 countElements (x : xs)
-  | x == fst first = (x, snd first + 1) : tail counts
+  | ((y, count) : rest) <- counts, x == y = (x, count + 1) : rest
   | otherwise = (x, 1) : counts
   where
     counts = countElements xs
-    first = head counts
 
 -- Looks up an item in an assoc list. Returns 0 if it's not found.
 findCount :: (Num a, Eq t) => t -> [(t, a)] -> a
