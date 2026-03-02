@@ -9,11 +9,11 @@ atoi s = case readMaybe s :: Maybe Int of
   Nothing -> error ("not a number: " ++ s)
 
 parseLine :: String -> (Int, Int)
-parseLine line =
-  let numbers = map atoi (words line)
-   in case numbers of
-        [first, second] -> (first, second)
-        _ -> error ("invalid line: " ++ line)
+parseLine line
+  | [first, second] <- numbers = (first, second)
+  | otherwise = error ("invalid line: " ++ line)
+  where
+    numbers = map atoi (words line)
 
 parseFile :: String -> [(Int, Int)]
 parseFile text = map parseLine (lines text)
