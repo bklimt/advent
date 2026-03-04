@@ -20,7 +20,23 @@ part1 text =
       numbers = map processMul allMatches
    in sum numbers
 
+processInstructions :: Bool -> [[String]] -> Int
+processInstructions _ [] = 0
+processInstructions enabled (x : xs)
+  | ["do()", _, _] <- x = processInstructions True xs
+  | ["don't()", _, _] <- x = processInstructions False xs
+  | [_, a, b] <- x, enabled = atoi a * atoi b + processInstructions enabled xs
+  | [_, _, _] <- x, not enabled = processInstructions enabled xs
+  | otherwise = error "invalid line"
+
+part2 :: String -> Int
+part2 text =
+  let pattern = "mul\\(([0-9]{1,3}),([0-9]{1,3})\\)|do\\(\\)|don't\\(\\)" :: String
+      allMatches = text =~ pattern :: [[String]]
+   in processInstructions True allMatches
+
 main :: IO ()
 main = do
   text <- readFile "./input/03.txt"
   print (part1 text)
+  print (part2 text)
