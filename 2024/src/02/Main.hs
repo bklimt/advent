@@ -28,6 +28,13 @@ isSafe record
   where
     reason = unsafeReason record
 
+-- This seems horribly inefficient, but is fast to code.
+isSafe2 :: [Int] -> [Int] -> Bool
+isSafe2 [] [] = True
+isSafe2 [] (x : ys) = isSafe (x : ys) || isSafe ys || isSafe2 [x] ys
+isSafe2 xs (y : zs) = isSafe (xs ++ zs) || isSafe2 (xs ++ [y]) zs
+isSafe2 _ [] = False
+
 part1 :: String -> Int
 part1 text =
   let records = parseFile text
@@ -35,7 +42,15 @@ part1 text =
       safeCount = length safeRecords
    in safeCount
 
+part2 :: String -> Int
+part2 text =
+  let records = parseFile text
+      safeRecords = filter (isSafe2 []) records
+      safeCount = length safeRecords
+   in safeCount
+
 main :: IO ()
 main = do
   text <- readFile "./input/02.txt"
   print (part1 text)
+  print (part2 text)
