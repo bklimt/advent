@@ -42,6 +42,19 @@ isForbidden :: [Int] -> Set (Int, Int) -> Bool
 isForbidden [] _ = False
 isForbidden (x : xs) ruleSet = any (\y -> Set.member (y, x) ruleSet) xs || isForbidden xs ruleSet
 
+fixList :: [Int] -> Set (Int, Int) -> [Int]
+fixList [] _ = []
+fixList (x : xs) ruleSet
+  | (_, []) <- broken = x : fixList xs ruleSet
+  | (prefix, y : suffix) <- broken = y : (prefix ++ (x : suffix))
+  where
+    broken = break (\y -> Set.member (y, x) ruleSet) xs
+
+maybeFixList :: [Int] -> Set (Int, Int) -> [Int]
+maybeFixList list ruleSet
+  | isForbidden list ruleSet = maybeFixList (fixList list ruleSet) ruleSet
+  | otherwise = list
+
 getMiddle :: [a] -> a
 getMiddle list = list !! (length list `div` 2)
 
@@ -54,7 +67,18 @@ part1 text =
       total = sum middles
    in total
 
+part2 :: [Char] -> Int
+part2 text =
+  let input = parseFile text
+      ruleSet = generateSet (rules input)
+      forbiddenUpdates = filter (`isForbidden` ruleSet) (updates input)
+      fixedUpdates = map (`maybeFixList` ruleSet) forbiddenUpdates
+      middles = map getMiddle fixedUpdates
+      total = sum middles
+   in total
+
 main :: IO ()
 main = do
   text <- readFile "./input/05.txt"
   print (part1 text)
+  print (part2 text)
