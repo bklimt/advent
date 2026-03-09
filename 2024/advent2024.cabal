@@ -45,3 +45,9 @@ executable 04
     hs-source-dirs:   src/04
     default-language: Haskell2010
 
+executable 05
+    import:           warnings
+    main-is:          Main.hs
+    build-depends:    base ^>=4.18.3.0, containers
+    hs-source-dirs:   src/05
+    default-language: Haskell2010
